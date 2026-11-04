@@ -1,0 +1,37 @@
+param([switch]$SkipChecks)
+$ErrorActionPreference = 'Stop'
+$projectRoot = Split-Path -Parent $PSScriptRoot
+Set-Location -LiteralPath $projectRoot
+$flutter = if (Test-Path -LiteralPath '.tools/flutter/bin/flutter.bat') {
+    Join-Path $projectRoot '.tools/flutter/bin/flutter.bat'
+} else { 'flutter' }
+$dart = if (Test-Path -LiteralPath '.tools/flutter/bin/dart.bat') {
+    Join-Path $projectRoot '.tools/flutter/bin/dart.bat'
+} else { 'dart' }
+function Invoke-Checked([scriptblock]$Command) {
+    & $Command
+    if ($LASTEXITCODE -ne 0) { throw "Command failed with exit code $LASTEXITCODE" }
+}
+Invoke-Checked { & $flutter pub get }
+if (!$SkipChecks) {
+    Invoke-Checked { & $dart format . }
+    Invoke-Checked { & $flutter analyze }
+    Invoke-Checked { & $flutter test test/data/todo_repository_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/ui/home_screen_test.dart }
+}
+if (!(Test-Path -LiteralPath 'android/key.properties')) {
+    New-Item -ItemType Directory -Force -Path '.signing' | Out-Null
+    $password = [Guid]::NewGuid().ToString('N')
+    $keytool = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin/keytool.exe' } else { 'keytool' }
+    # Keep the signing identity across builds so installs can be upgraded in place.
+    if (Test-Path -LiteralPath '.signing/release.jks') {
+        throw 'Signing key exists but key.properties is missing. Restore its credentials before building.'
+    }
+    Invoke-Checked {
+        & $keytool -genkeypair -noprompt -keystore '.signing/release.jks' -alias shiguang -keyalg RSA -keysize 3072 -validity 10000 -storepass $password -keypass $password -dname 'CN=Shiguang Todo'
+    }
+    @("storePassword=$password", "keyPassword=$password", 'keyAlias=shiguang', 'storeFile=../../.signing/release.jks') | Set-Content -LiteralPath 'android/key.properties' -Encoding ascii
+}
+Invoke-Checked { & $flutter build apk --release }
+New-Item -ItemType Directory -Force -Path output | Out-Null
+Copy-Item -LiteralPath 'build/app/outputs/flutter-apk/app-release.apk' -Destination 'output/shiguang-todo-latest.apk' -Force
+Get-FileHash -LiteralPath 'output/shiguang-todo-latest.apk' -Algorithm SHA256

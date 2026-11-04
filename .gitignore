@@ -1,0 +1,24 @@
+# Toolchains and generated output
+.tools/
+.dart_tool/
+.flutter-plugins*
+.packages
+build/
+output/
+coverage/
+android/.gradle/
+android/captures/
+android/local.properties
+android/key.properties
+*.jks
+*.keystore
+*.pem
+*.key
+.signing/
+.gradle/
+.idea/
+*.iml
+.env
+.env.*
+!.env.example
+*.log
