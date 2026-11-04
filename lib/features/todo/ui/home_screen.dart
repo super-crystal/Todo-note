@@ -7,8 +7,14 @@ import '../../../core/app_theme.dart';
 import '../../../core/strings.dart';
 import '../../../data/todo.dart';
 import '../state/todo_state.dart';
+import '../state/calendar_state.dart';
+import '../state/task_filters.dart';
 import 'task_editor.dart';
 import 'task_tile.dart';
+import 'task_calendar.dart';
+import 'task_controls.dart';
+import 'task_filter_sheet.dart';
+import 'task_search_bar.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -20,10 +26,11 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with WidgetsBindingObserver {
   TaskView _view = TaskView.today;
-  TaskCategory? _category;
+  TaskFilters _filters = const TaskFilters(completed: false);
   TaskSort _sort = TaskSort.dueDate;
-  bool _completed = false;
+  late DateTime _selectedDay;
   final _search = TextEditingController();
+  final _resultsFocus = FocusNode(skipTraversal: true);
   final _busyIds = <String>{};
   late final Timer _clock;
   DateTime _now = DateTime.now();
@@ -31,6 +38,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void initState() {
     super.initState();
+    _selectedDay = dayOnly(_now);
     WidgetsBinding.instance.addObserver(this);
     _clock = Timer.periodic(const Duration(minutes: 1), (_) => _refreshDate());
   }
@@ -49,6 +57,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     WidgetsBinding.instance.removeObserver(this);
     _clock.cancel();
     _search.dispose();
+    _resultsFocus.dispose();
     super.dispose();
   }
 
@@ -173,10 +182,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ),
       ),
-      floatingActionButton: tasks.hasValue
+      floatingActionButton: tasks.hasValue && _view != TaskView.planned
           ? FloatingActionButton.extended(
-              onPressed: () =>
-                  openTaskEditor(context, today: _view == TaskView.today),
+              onPressed: _openNewTask,
               icon: const Icon(Icons.add),
               label: const Text(S.newTask),
             )
@@ -185,8 +193,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         selectedIndex: _view.index,
         onDestinationSelected: (index) => setState(() {
           _view = TaskView.values[index];
-          _category = null;
-          _completed = false;
+          _filters = TaskFilters(
+            completed: _view == TaskView.today ? false : null,
+          );
           _search.clear();
         }),
         destinations: const [
@@ -210,196 +219,221 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
+  Future<void> _openFilters(List<Todo> tasks) async {
+    _resultsFocus.requestFocus();
+    final selected = await showTaskFilters(
+      context,
+      filters: _filters,
+      tags: TaskFilters.availableTags(tasks),
+    );
+    if (selected != null && mounted) {
+      _resultsFocus.requestFocus();
+      setState(() => _filters = selected);
+    }
+  }
+
+  void _openNewTask() => openTaskEditor(
+    context,
+    today: _view == TaskView.today,
+    initialDate: _view == TaskView.planned ? _selectedDay : null,
+  );
+
+  Future<void> _chooseCalendarDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _selectedDay,
+      firstDate: DateTime(_selectedDay.year < 2000 ? _selectedDay.year : 2000),
+      lastDate: DateTime(
+        _selectedDay.year > 2100 ? _selectedDay.year : 2100,
+        12,
+        31,
+      ),
+      helpText: S.chooseDate,
+    );
+    if (selected != null && mounted) {
+      setState(() => _selectedDay = dayOnly(selected));
+    }
+  }
+
   Widget _content(List<Todo> tasks) {
-    final theme = Theme.of(context);
     final filtered = TaskQuery(
       view: _view,
-      category: _category,
-      completed: _completed,
+      category: _filters.category,
+      completed: _filters.completed,
       search: _search.text,
       sort: _sort,
+      priority: _filters.priority,
+      tag: _filters.tag,
+      dateFrom: _view == TaskView.planned ? _selectedDay : _filters.dateFrom,
+      dateTo: _view == TaskView.planned ? _selectedDay : _filters.dateTo,
+      undatedOnly: _filters.undatedOnly,
     ).apply(tasks, _now);
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpace.xl,
-            AppSpace.lg,
-            AppSpace.xl,
-            0,
-          ),
-          sliver: SliverList.list(
-            children: [
-              Text(
-                S.headerDate(_now),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+    return Focus(
+      focusNode: _resultsFocus,
+      includeSemantics: false,
+      child: CustomScrollView(
+        key: ValueKey(_view),
+        slivers: [
+          if (_view == TaskView.all)
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: TaskSearchHeader(
+                controller: _search,
+                filterCount: _filters.activeCount,
+                onChanged: () => setState(() {}),
+                onFilters: () => _openFilters(tasks),
               ),
-              const SizedBox(height: AppSpace.sm),
-              Text(
-                switch (_view) {
-                  TaskView.today => S.focus,
-                  TaskView.planned => S.planned,
-                  TaskView.all => S.all,
-                },
-                style: theme.textTheme.headlineLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: AppSpace.xl),
-              if (_view == TaskView.today) ...[
-                _FocusCard(tasks: tasks, now: _now),
-                const SizedBox(height: AppSpace.xl),
-              ],
-              if (tasks.isNotEmpty) ...[
-                TextField(
-                  controller: _search,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: S.search,
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _search.text.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: S.clearSearch,
-                            onPressed: () => setState(_search.clear),
-                            icon: const Icon(Icons.close),
-                          ),
+            ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.xl,
+              AppSpace.lg,
+              AppSpace.xl,
+              0,
+            ),
+            sliver: SliverList.list(
+              children: [
+                if (_view == TaskView.today) ..._todayHeader(tasks),
+                if (_view == TaskView.planned) ..._calendarHeader(tasks),
+                if (_view == TaskView.all && _filters.activeCount > 0) ...[
+                  TaskFilterSummary(filters: _filters),
+                  const SizedBox(height: AppSpace.sm),
+                ],
+                if (_view != TaskView.today || tasks.isNotEmpty)
+                  TaskListControls(
+                    count: filtered.length,
+                    completed: _filters.completed,
+                    allowAll: _view != TaskView.today,
+                    sort: _sort,
+                    onStatus: (value) =>
+                        setState(() => _filters = _filters.withStatus(value)),
+                    onSort: (value) => setState(() => _sort = value),
                   ),
-                ),
-                const SizedBox(height: AppSpace.lg),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      ChoiceChip(
-                        label: const Text(S.all),
-                        selected: _category == null,
-                        onSelected: (_) => setState(() => _category = null),
-                      ),
-                      for (final category in TaskCategory.values) ...[
-                        const SizedBox(width: AppSpace.sm),
-                        ChoiceChip(
-                          label: Text(category.label),
-                          selected: _category == category,
-                          onSelected: (_) =>
-                              setState(() => _category = category),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpace.lg),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Wrap(
-                        spacing: AppSpace.xs,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          TextButton(
-                            onPressed: () => setState(() => _completed = false),
-                            child: Text(
-                              S.pending,
-                              style: TextStyle(
-                                color: _completed
-                                    ? theme.colorScheme.onSurfaceVariant
-                                    : theme.colorScheme.primary,
-                                fontWeight: _completed ? null : FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => setState(() => _completed = true),
-                            child: Text(
-                              S.completed,
-                              style: TextStyle(
-                                color: _completed
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.onSurfaceVariant,
-                                fontWeight: _completed ? FontWeight.bold : null,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      S.taskCount(filtered.length),
-                      style: theme.textTheme.labelSmall,
-                    ),
-                    PopupMenuButton<TaskSort>(
-                      tooltip: S.sort,
-                      initialValue: _sort,
-                      icon: const Icon(Icons.sort),
-                      onSelected: (sort) => setState(() => _sort = sort),
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: TaskSort.dueDate,
-                          child: Text(S.dateSort),
-                        ),
-                        PopupMenuItem(
-                          value: TaskSort.priority,
-                          child: Text(S.prioritySort),
-                        ),
-                        PopupMenuItem(
-                          value: TaskSort.newest,
-                          child: Text(S.createdSort),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
                 const SizedBox(height: AppSpace.sm),
               ],
-            ],
-          ),
-        ),
-        if (filtered.isEmpty)
-          SliverToBoxAdapter(child: _empty(tasks.isEmpty))
-        else
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
-            sliver: SliverList.separated(
-              itemCount: filtered.length,
-              separatorBuilder: (_, _) => const SizedBox(height: AppSpace.md),
-              itemBuilder: (context, index) {
-                final task = filtered[index];
-                return TaskTile(
-                  key: ValueKey(task.id),
-                  task: task,
-                  now: _now,
-                  onToggle: () => _action(
-                    task,
-                    () => ref.read(tasksProvider.notifier).toggle(task),
-                  ),
-                  onEdit: () => openTaskEditor(context, task: task),
-                  onDelete: () => _delete(task),
-                );
-              },
             ),
           ),
-        const SliverToBoxAdapter(
-          child: SizedBox(height: AppSpace.fabClearance),
-        ),
-      ],
+          if (filtered.isEmpty)
+            SliverToBoxAdapter(child: _empty(tasks.isEmpty))
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+              sliver: SliverList.separated(
+                itemCount: filtered.length,
+                separatorBuilder: (_, _) => const SizedBox(height: AppSpace.md),
+                itemBuilder: (context, index) {
+                  final task = filtered[index];
+                  return TaskTile(
+                    key: ValueKey(task.id),
+                    task: task,
+                    now: _now,
+                    onToggle: () => _action(
+                      task,
+                      () => ref.read(tasksProvider.notifier).toggle(task),
+                    ),
+                    onEdit: () => openTaskEditor(context, task: task),
+                    onDelete: () => _delete(task),
+                  );
+                },
+              ),
+            ),
+          const SliverToBoxAdapter(
+            child: SizedBox(height: AppSpace.fabClearance),
+          ),
+        ],
+      ),
     );
   }
 
+  List<Widget> _todayHeader(List<Todo> tasks) {
+    final theme = Theme.of(context);
+    return [
+      Text(
+        S.headerDate(_now),
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      const SizedBox(height: AppSpace.sm),
+      Text(
+        S.focus,
+        style: theme.textTheme.headlineLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: AppSpace.xl),
+      _FocusCard(tasks: tasks, now: _now),
+      const SizedBox(height: AppSpace.xl),
+      if (tasks.isNotEmpty) ...[
+        TextField(
+          controller: _search,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: S.search,
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _search.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: S.clearSearch,
+                    onPressed: () => setState(_search.clear),
+                    icon: const Icon(Icons.close),
+                  ),
+          ),
+        ),
+        const SizedBox(height: AppSpace.lg),
+        TaskCategoryChips(
+          selected: _filters.category,
+          onChanged: (value) =>
+              setState(() => _filters = _filters.withCategory(value)),
+        ),
+        const SizedBox(height: AppSpace.lg),
+      ],
+    ];
+  }
+
+  List<Widget> _calendarHeader(List<Todo> tasks) => [
+    TaskCalendar(
+      calendar: CalendarMonth(_selectedDay, tasks),
+      now: _now,
+      onSelected: (date) => setState(() => _selectedDay = date),
+      onChooseDate: _chooseCalendarDate,
+    ),
+    const SizedBox(height: AppSpace.lg),
+    Row(
+      children: [
+        Expanded(
+          child: Text(
+            '${S.fullDate(_selectedDay)} · ${S.weekday(_selectedDay)}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        IconButton.filledTonal(
+          tooltip: S.newTask,
+          onPressed: _openNewTask,
+          icon: const Icon(Icons.add),
+        ),
+      ],
+    ),
+    const SizedBox(height: AppSpace.sm),
+  ];
+
   Widget _empty(bool noTasks) {
-    final filtered = _category != null || _search.text.trim().isNotEmpty;
-    final (title, body) = filtered
+    if (_view == TaskView.planned) {
+      return const _EmptyState(title: S.dayEmptyTitle, body: S.dayEmptyBody);
+    }
+    final narrowed =
+        _search.text.trim().isNotEmpty ||
+        _filters.category != null ||
+        (_view == TaskView.all && _filters.activeCount > 0);
+    final (title, body) = narrowed
         ? (S.noResults, S.noResultsBody)
-        : _completed
+        : _filters.completed == true
         ? (S.completedEmpty, S.completedEmptyBody)
         : noTasks
         ? (S.emptyTitle, S.emptyBody)
-        : switch (_view) {
-            TaskView.today => (S.todayEmpty, S.todayEmptyBody),
-            TaskView.planned => (S.plannedEmpty, S.plannedEmptyBody),
-            TaskView.all => (S.emptyTitle, S.emptyBody),
-          };
+        : _view == TaskView.today
+        ? (S.todayEmpty, S.todayEmptyBody)
+        : (S.emptyTitle, S.emptyBody);
     return _EmptyState(title: title, body: body);
   }
 }

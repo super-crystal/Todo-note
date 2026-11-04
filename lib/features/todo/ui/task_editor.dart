@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/strings.dart';
 import '../../../data/todo.dart';
+import '../../../data/task_tags.dart';
 import '../state/todo_state.dart';
 import 'task_editor_fields.dart';
 
@@ -11,20 +12,28 @@ Future<void> openTaskEditor(
   BuildContext context, {
   Todo? task,
   bool today = false,
+  DateTime? initialDate,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (_) => TaskEditor(task: task, defaultToday: today),
+    builder: (_) =>
+        TaskEditor(task: task, defaultToday: today, initialDate: initialDate),
   );
 }
 
 class TaskEditor extends ConsumerStatefulWidget {
-  const TaskEditor({super.key, this.task, this.defaultToday = false});
+  const TaskEditor({
+    super.key,
+    this.task,
+    this.defaultToday = false,
+    this.initialDate,
+  });
   final Todo? task;
   final bool defaultToday;
+  final DateTime? initialDate;
 
   @override
   ConsumerState<TaskEditor> createState() => _TaskEditorState();
@@ -34,6 +43,7 @@ class _TaskEditorState extends ConsumerState<TaskEditor> {
   final _form = GlobalKey<FormState>();
   late final TextEditingController _title;
   late final TextEditingController _note;
+  late final TextEditingController _tags;
   late TaskCategory _category;
   late TaskPriority _priority;
   DateTime? _dueDate;
@@ -45,19 +55,20 @@ class _TaskEditorState extends ConsumerState<TaskEditor> {
     super.initState();
     _title = TextEditingController(text: widget.task?.title);
     _note = TextEditingController(text: widget.task?.note);
+    _tags = TextEditingController(text: widget.task?.tags.join('，'));
     _category = widget.task?.category ?? TaskCategory.inbox;
     _priority = widget.task?.priority ?? TaskPriority.low;
     _dueDate = widget.task != null
         ? widget.task!.dueDate
-        : widget.defaultToday
-        ? dayOnly(DateTime.now())
-        : null;
+        : widget.initialDate ??
+              (widget.defaultToday ? dayOnly(DateTime.now()) : null);
   }
 
   @override
   void dispose() {
     _title.dispose();
     _note.dispose();
+    _tags.dispose();
     super.dispose();
   }
 
@@ -87,6 +98,7 @@ class _TaskEditorState extends ConsumerState<TaskEditor> {
             existing: widget.task,
             title: _title.text,
             note: _note.text,
+            tags: TaskTags.parse(_tags.text),
             category: _category,
             priority: _priority,
             dueDate: _dueDate,
@@ -137,6 +149,8 @@ class _TaskEditorState extends ConsumerState<TaskEditor> {
                           autofocus: widget.task == null,
                           enabled: !_saving,
                         ),
+                        const SizedBox(height: AppSpace.sm),
+                        TaskTagsField(controller: _tags, enabled: !_saving),
                         const SizedBox(height: AppSpace.sm),
                         TaskDateField(
                           date: _dueDate,

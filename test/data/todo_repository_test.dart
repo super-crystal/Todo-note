@@ -21,15 +21,17 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  Todo task({String title = '  阅读  '}) => Todo(
-    id: 'test-1',
-    title: title,
-    note: '第一章',
-    category: TaskCategory.study,
-    priority: TaskPriority.high,
-    createdAt: DateTime(2026, 11, 4),
-    dueDate: DateTime(2026, 11, 5),
-  );
+  Todo task({String title = '  阅读  ', List<String> tags = const ['读书']}) =>
+      Todo(
+        id: 'test-1',
+        title: title,
+        note: '第一章',
+        tags: tags,
+        category: TaskCategory.study,
+        priority: TaskPriority.high,
+        createdAt: DateTime(2026, 11, 4),
+        dueDate: DateTime(2026, 11, 5),
+      );
 
   test('create, reopen, edit and delete preserve task fields', () async {
     await repository.save(task());
@@ -39,6 +41,7 @@ void main() {
     final stored = repository.readAll().single;
     expect(stored.title, '阅读');
     expect(stored.note, '第一章');
+    expect(stored.tags, ['读书']);
     expect(stored.category, TaskCategory.study);
     expect(stored.priority, TaskPriority.high);
     expect(stored.dueDate, DateTime(2026, 11, 5));
@@ -61,6 +64,7 @@ void main() {
       await repository.save(stored.toggle(DateTime(2026, 11, 4, 10)));
       expect(repository.readAll().single.isCompleted, isFalse);
       expect(repository.readAll().single.dueDate, task().dueDate);
+      expect(repository.readAll().single.tags, task().tags);
     },
   );
 
@@ -73,6 +77,10 @@ void main() {
         throwsArgumentError,
       );
       expect(repository.readAll().single.title, '阅读');
+      await expectLater(
+        repository.save(task(tags: ['abcdefghijklmnopq'])),
+        throwsArgumentError,
+      );
       expect(
         () => Todo.fromMap({...task().toMap(), 'schemaVersion': 2}),
         throwsFormatException,

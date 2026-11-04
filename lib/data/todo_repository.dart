@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 
 import 'todo.dart';
+import 'task_tags.dart';
 
 class TodoRepository {
   TodoRepository(this._box);
@@ -11,7 +12,10 @@ class TodoRepository {
 
   Future<void> save(Todo task) async {
     final title = task.title.trim();
-    if (title.isEmpty || title.length > 120 || task.note.length > 2000) {
+    if (title.isEmpty ||
+        title.length > 120 ||
+        task.note.length > 2000 ||
+        TaskTags.validate(task.tags) != null) {
       throw ArgumentError('Invalid task content');
     }
     await _box.put(task.id, {...task.toMap(), 'title': title});

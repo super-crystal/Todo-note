@@ -33,7 +33,7 @@ abstract final class S {
   static const emptyTitle = '从一件小事开始';
   static const emptyBody = '点击下方「添加任务」，\n把脑海里的计划放进清单。';
   static const noResults = '没有找到匹配的任务';
-  static const noResultsBody = '试试其他关键词，或切换清单和状态。';
+  static const noResultsBody = '试试其他关键词，或调整标签、日期和状态筛选。';
   static const todayEmpty = '今天的清单很轻盈';
   static const todayEmptyBody = '安排一件重要的小事，\n或者享受此刻的从容。';
   static const plannedEmpty = '为接下来的日子留个计划';
@@ -50,7 +50,7 @@ abstract final class S {
   static const about = '关于拾光';
   static const aboutBody =
       '专注当下，从容安排。\n\n任务仅保存在这台手机，无需登录。\n卸载应用或清除数据会删除清单。\n截止日期用于安排任务，当前版本不发送通知。';
-  static const version = '版本 1.0.0 · 离线可用';
+  static const version = '版本 1.1.0 · 离线可用';
   static const close = '知道了';
   static const focus = '今日专注';
   static const focusEmpty = '给今天一点方向';
@@ -58,6 +58,37 @@ abstract final class S {
   static const focusHint = '一次一件事，慢慢也很快。';
   static const clearDate = '移除截止日期';
   static const clearSearch = '清空搜索';
+  static const searchAll = '关键词、备注或 #标签';
+  static const filters = '筛选任务';
+  static const applyFilters = '应用筛选';
+  static const resetFilters = '重置筛选';
+  static const anyCategory = '所有清单';
+  static const anyPriority = '所有优先级';
+  static const anyTag = '所有标签';
+  static const allStatuses = '全部状态';
+  static const status = '完成状态';
+  static const tags = '标签';
+  static const tagsExample = '例如：购物，周末';
+  static const tagsHelp = '用逗号或空格分隔，最多 5 个，每个不超过 16 字';
+  static const tagsTooMany = '最多添加 5 个标签';
+  static const tagTooLong = '每个标签不超过 16 个字符';
+  static const dateRange = '截止日期范围';
+  static const anyDate = '不限截止日期';
+  static const onlyUndated = '仅未设日期';
+  static const clearRange = '清除日期筛选';
+  static const previousMonth = '上个月';
+  static const nextMonth = '下个月';
+  static const chooseDate = '选择日期';
+  static const calendarHint = '圆点表示这一天有任务，点击日期查看详情';
+  static const dayEmptyTitle = '这一天还没有匹配的任务';
+  static const dayEmptyBody = '选择其他日期，或为这一天添加一项任务。';
+  static const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+  static String tagLabel(String tag) => '#$tag';
+  static String yearMonth(DateTime date) => '${date.year}年${date.month}月';
+  static String range(DateTime start, DateTime end) =>
+      '${fullDate(start)} — ${fullDate(end)}';
+  static String calendarDay(DateTime date, int count, bool today) =>
+      '${fullDate(date)}${today ? '，今天' : ''}${count > 0 ? '，${taskCount(count)}' : ''}';
   static String progress(int done, int total) => '已完成 $done / $total 项';
   static String taskCount(int count) => '$count 项任务';
   static String remaining(int count) => '还有 $count 件事，值得用心';

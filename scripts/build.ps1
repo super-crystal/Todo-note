@@ -16,7 +16,7 @@ Invoke-Checked { & $flutter pub get }
 if (!$SkipChecks) {
     Invoke-Checked { & $dart format . }
     Invoke-Checked { & $flutter analyze }
-    Invoke-Checked { & $flutter test test/data/todo_repository_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/ui/home_screen_test.dart }
+    Invoke-Checked { & $flutter test test/data/todo_repository_test.dart test/data/task_tags_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/state/calendar_state_test.dart test/features/todo/state/task_search_test.dart test/features/todo/ui/home_screen_test.dart }
 }
 if (!(Test-Path -LiteralPath 'android/key.properties')) {
     New-Item -ItemType Directory -Force -Path '.signing' | Out-Null

@@ -54,12 +54,124 @@ void main() {
       tester.view.resetDevicePixelRatio();
     }
   });
+  testWidgets('calendar dots and selected day switch the task details', (
+    tester,
+  ) async {
+    final today = dayOnly(DateTime.now());
+    final other = DateTime(today.year, today.month, today.day == 1 ? 2 : 1);
+    final repository = _MemoryRepository([
+      Todo(id: 'today', title: '今天的计划', createdAt: today, dueDate: today),
+      Todo(id: 'other', title: '选中日期的计划', createdAt: today, dueDate: other),
+    ]);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    try {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            repositoryProvider.overrideWith((ref) async => repository),
+          ],
+          child: const ShiguangApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(NavigationDestination).at(1));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(ValueKey('calendar-dot-${other.toIso8601String()}')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.byKey(ValueKey(other)));
+      await tester.tap(find.byKey(ValueKey(other)));
+      await tester.pumpAndSettle();
+      expect(find.text('选中日期的计划'), findsOneWidget);
+      expect(find.text('今天的计划'), findsNothing);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    }
+  });
+
+  testWidgets('all search combines labels and undated filter and can reset', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final today = dayOnly(DateTime.now());
+    final repository = _MemoryRepository([
+      Todo(
+        id: 'a',
+        title: '买苹果',
+        tags: ['周末'],
+        createdAt: today,
+        dueDate: today,
+      ),
+      Todo(id: 'b', title: '准备报告', tags: ['工作'], createdAt: today),
+      Todo(
+        id: 'c',
+        title: '苹果派',
+        tags: ['周末'],
+        createdAt: today,
+        completedAt: today,
+      ),
+    ]);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    try {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            repositoryProvider.overrideWith((ref) async => repository),
+          ],
+          child: const ShiguangApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(NavigationDestination).at(2));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('all-task-search')),
+        '#周末 苹果',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('买苹果'), findsOneWidget);
+      expect(find.text('苹果派'), findsOneWidget);
+      expect(find.text('准备报告'), findsNothing);
+      await tester.tap(find.byTooltip(S.filters));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text(S.onlyUndated));
+      await tester.tap(find.text(S.onlyUndated));
+      await tester.tap(find.text(S.applyFilters));
+      await tester.pumpAndSettle();
+      expect(find.text('买苹果'), findsNothing);
+      expect(find.text('苹果派'), findsOneWidget);
+      expect(find.bySemanticsLabel(S.filters), findsOneWidget);
+      expect(tester.testTextInput.isVisible, isFalse);
+      await tester.tap(find.byTooltip(S.filters));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(S.resetFilters));
+      await tester.pumpAndSettle();
+      expect(find.text('买苹果'), findsOneWidget);
+      await tester.tap(find.byTooltip(S.clearSearch));
+      await tester.pumpAndSettle();
+      expect(find.text('准备报告'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      semantics.dispose();
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    }
+  });
 }
 
 class _UnusedBox extends Fake implements Box<dynamic> {}
 
 class _MemoryRepository extends TodoRepository {
-  _MemoryRepository() : super(_UnusedBox());
+  _MemoryRepository([Iterable<Todo> initial = const []]) : super(_UnusedBox()) {
+    _tasks.addEntries(initial.map((task) => MapEntry(task.id, task)));
+  }
   final _tasks = <String, Todo>{};
 
   @override

@@ -1,6 +1,6 @@
 param(
     [string]$Repository = 'super-crystal/Todo-note',
-    [string]$Tag = 'v1.0.0'
+    [string]$Tag = 'v1.1.0'
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -41,7 +41,7 @@ try {
     if ($asset.size -ne (Get-Item -LiteralPath $apkPath).Length) { throw 'Uploaded APK size mismatch; release remains a draft.' }
     $published = Invoke-RestMethod -Method Patch -Uri "https://api.github.com/repos/$Repository/releases/$($release.id)" -Headers $headers -ContentType 'application/json' -Body '{"draft":false}'
     Write-Output $published.html_url
-    Write-Output $asset.browser_download_url
+    Write-Output ($published.assets | Where-Object name -eq 'shiguang-todo-latest.apk' | Select-Object -First 1 -ExpandProperty browser_download_url)
 } finally {
     $headers.Clear()
     $credential.Clear()

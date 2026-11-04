@@ -3,6 +3,37 @@ import 'package:flutter/material.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/strings.dart';
 import '../../../data/todo.dart';
+import '../../../data/task_tags.dart';
+
+class TaskTagsField extends StatelessWidget {
+  const TaskTagsField({
+    super.key,
+    required this.controller,
+    required this.enabled,
+  });
+  final TextEditingController controller;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) => TextFormField(
+    key: const ValueKey('task-tags'),
+    controller: controller,
+    enabled: enabled,
+    maxLength: TaskTags.maxInputLength,
+    decoration: const InputDecoration(
+      labelText: S.tags,
+      hintText: S.tagsExample,
+      helperText: S.tagsHelp,
+      helperMaxLines: 2,
+    ),
+    validator: (value) =>
+        switch (TaskTags.validate(TaskTags.parse(value ?? ''))) {
+          TagInputError.tooMany => S.tagsTooMany,
+          TagInputError.tooLong => S.tagTooLong,
+          null => null,
+        },
+  );
+}
 
 class TaskTextFields extends StatelessWidget {
   const TaskTextFields({

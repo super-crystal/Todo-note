@@ -18,6 +18,10 @@ abstract final class AppSize {
   static const smallIcon = 20.0;
   static const emptyIcon = 42.0;
   static const progressHeight = 5.0;
+  static const calendarDayHeight = 44.0;
+  static const calendarSelection = 36.0;
+  static const calendarDot = 4.0;
+  static const searchHeaderHeight = 88.0;
 }
 
 abstract final class AppTheme {

@@ -15,7 +15,7 @@ test/                    对应业务测试
 scripts/                 本地构建脚本
 ```
 
-每条任务保存 `schemaVersion: 1`。未来变更须添加显式迁移；未知版本会报错并保留原数据，不自动重置。
+每条任务保存 `schemaVersion: 1`。1.1 新增可选的 `tags` 字符串数组，读取旧记录时缺失字段按空标签处理；已有标题、备注、日期和完成状态保持不变，后续保存时写入新字段，无需清空 Hive 数据。标签去重、数量和长度校验统一由数据层处理。未来不兼容变更须添加显式迁移；未知版本会报错并保留原数据，不自动重置。
 
 ## 开发
 
@@ -25,7 +25,7 @@ scripts/                 本地构建脚本
 flutter pub get
 dart format .
 flutter analyze
-flutter test test/data/todo_repository_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/ui/home_screen_test.dart
+flutter test test/data/todo_repository_test.dart test/data/task_tags_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/state/calendar_state_test.dart test/features/todo/state/task_search_test.dart test/features/todo/ui/home_screen_test.dart
 flutter run
 ```
 
@@ -43,4 +43,4 @@ Android 沿用 Flutter 稳定版模板的 SDK / NDK / Gradle 版本。Gradle 使
 
 构建成功后仅在 `output/shiguang-todo-latest.apk` 保留当前交付版本。标准 Flutter `build/` 为忽略的构建缓存，不作为版本归档。GitHub Release 保存历史版本。
 
-本次验证结果与 APK 摘要见 [验证记录](docs/VALIDATION.md)。源码提交后可运行 `pwsh -File scripts/publish.ps1 -Tag v1.0.0` 推送并发布 APK；使用 Git Credential Manager 的现有 GitHub 登录，凭据不会写入源码或日志。
+本次验证结果与 APK 摘要见 [验证记录](docs/VALIDATION.md)。源码提交后可运行 `pwsh -File scripts/publish.ps1 -Tag v1.1.0` 推送并发布 APK；使用 Git Credential Manager 的现有 GitHub 登录，凭据不会写入源码或日志。

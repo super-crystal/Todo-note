@@ -115,6 +115,7 @@ void main() {
         final controller = container.read(tasksProvider.notifier);
         await controller.save(
           title: '阅读',
+          tags: ['读书'],
           note: '',
           category: TaskCategory.study,
           priority: TaskPriority.low,
@@ -122,6 +123,7 @@ void main() {
         );
         final original = container.read(tasksProvider).requireValue.single;
         expect(original.dueDate, dayOnly(now));
+        expect(original.tags, ['读书']);
         await controller.toggle(original);
         final completed = container.read(tasksProvider).requireValue.single;
         await controller.save(
@@ -134,6 +136,7 @@ void main() {
         final edited = container.read(tasksProvider).requireValue.single;
         expect(edited.isCompleted, isTrue);
         expect(edited.dueDate, isNull);
+        expect(edited.tags, ['读书']);
         await controller.delete(edited);
         expect(container.read(tasksProvider).requireValue, isEmpty);
         await controller.restore(edited);

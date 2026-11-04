@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'task_tags.dart';
+
 enum TaskCategory {
   personal('生活'),
   work('工作'),
@@ -24,7 +26,7 @@ DateTime dayOnly(DateTime value) =>
 
 @immutable
 class Todo {
-  const Todo({
+  Todo({
     required this.id,
     required this.title,
     required this.createdAt,
@@ -33,11 +35,13 @@ class Todo {
     this.priority = TaskPriority.low,
     this.dueDate,
     this.completedAt,
-  });
+    List<String> tags = const [],
+  }) : tags = TaskTags.normalize(tags);
 
   final String id;
   final String title;
   final String note;
+  final List<String> tags;
   final TaskCategory category;
   final TaskPriority priority;
   final DateTime createdAt;
@@ -54,6 +58,7 @@ class Todo {
     id: id,
     title: title,
     note: note,
+    tags: tags,
     category: category,
     priority: priority,
     createdAt: createdAt,
@@ -66,6 +71,7 @@ class Todo {
     'id': id,
     'title': title,
     'note': note,
+    'tags': tags,
     'category': category.name,
     'priority': priority.name,
     'createdAt': createdAt.toIso8601String(),
@@ -82,6 +88,10 @@ class Todo {
       id: data['id'] as String,
       title: data['title'] as String,
       note: data['note'] as String,
+      // Labels are additive in schema 1; existing installations have no field.
+      tags: data['tags'] == null
+          ? const []
+          : (data['tags'] as List).cast<String>(),
       category: TaskCategory.values.byName(data['category'] as String),
       priority: TaskPriority.values.byName(data['priority'] as String),
       createdAt: DateTime.parse(data['createdAt'] as String),

@@ -105,6 +105,13 @@ class TaskTile extends StatelessWidget {
                               label: task.priority.label,
                               color: priorityColor,
                             ),
+                          for (final tag in task.tags)
+                            Text(
+                              S.tagLabel(tag),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
                         ],
                       ),
                     ],
