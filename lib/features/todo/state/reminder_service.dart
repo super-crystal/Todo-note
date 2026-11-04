@@ -57,13 +57,16 @@ class ReminderService {
         if (task.reminderEnabled &&
             task.hasDueTime &&
             task.dueDate != null &&
-            !task.isCompleted)
+            (task.repeatDaily || !task.isCompleted))
           {
             'id': task.id,
             'title': task.title,
             'note': task.note,
             // Wall time follows the phone's time zone after a zone change.
             'localDate': task.dueDate!.toLocal().toIso8601String(),
+            'leadMinutes': task.reminderLeadMinutes,
+            'daily': task.repeatDaily,
+            'completedDays': task.completedDays,
           },
     ]);
   }
@@ -87,7 +90,11 @@ class ReminderStatus extends Notifier<ReminderAccess> {
       try {
         await service.sync(snapshot);
         state =
-            snapshot.any((task) => task.reminderEnabled && !task.isCompleted)
+            snapshot.any(
+              (task) =>
+                  task.reminderEnabled &&
+                  (task.repeatDaily || !task.isCompleted),
+            )
             ? await service.access()
             : ReminderAccess.ready;
       } on PlatformException {

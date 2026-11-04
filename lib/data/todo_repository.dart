@@ -2,6 +2,7 @@ import 'package:hive/hive.dart';
 
 import 'todo.dart';
 import 'task_tags.dart';
+import 'reminder_lead.dart';
 
 class TodoRepository {
   TodoRepository(this._box);
@@ -16,6 +17,8 @@ class TodoRepository {
         title.length > 120 ||
         task.note.length > 2000 ||
         TaskTags.validate(task.tags) != null ||
+        task.reminderLeadMinutes < 0 ||
+        task.reminderLeadMinutes > ReminderLead.maxMinutes ||
         (task.hasDueTime && task.dueDate == null) ||
         (task.reminderEnabled && (!task.hasDueTime || task.dueDate == null))) {
       throw ArgumentError('Invalid task content');

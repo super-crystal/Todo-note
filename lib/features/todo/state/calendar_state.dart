@@ -4,7 +4,7 @@ class CalendarMonth {
   CalendarMonth(DateTime selectedDate, List<Todo> tasks)
     : selectedDate = dayOnly(selectedDate),
       month = DateTime(selectedDate.year, selectedDate.month),
-      taskCounts = _countTasks(tasks);
+      taskCounts = _countTasks(tasks, selectedDate);
 
   final DateTime selectedDate;
   final DateTime month;
@@ -32,9 +32,19 @@ class CalendarMonth {
     );
   }
 
-  static Map<DateTime, int> _countTasks(List<Todo> tasks) {
+  static Map<DateTime, int> _countTasks(List<Todo> tasks, DateTime selected) {
     final counts = <DateTime, int>{};
     for (final task in tasks) {
+      if (task.repeatDaily) {
+        final last = DateTime(selected.year, selected.month + 1, 0).day;
+        for (var d = 1; d <= last; d++) {
+          final day = DateTime(selected.year, selected.month, d);
+          if (task.occursOn(day)) {
+            counts.update(day, (count) => count + 1, ifAbsent: () => 1);
+          }
+        }
+        continue;
+      }
       if (task.dueDate == null) continue;
       final day = dayOnly(task.dueDate!);
       counts.update(day, (count) => count + 1, ifAbsent: () => 1);

@@ -113,9 +113,12 @@ void main() {
           dueDate: due,
           hasDueTime: true,
           reminderEnabled: true,
+          reminderLeadMinutes: 5,
         );
         final original = container.read(tasksProvider).requireValue.single;
         expect(original.dueDate, due);
+        expect(original.reminderLeadMinutes, 5);
+        expect((scheduled().single as Map)['leadMinutes'], 5);
         expect((scheduled().single as Map)['localDate'], due.toIso8601String());
         final later = due.add(const Duration(hours: 1));
         await controller.save(
@@ -128,6 +131,7 @@ void main() {
         );
         final edited = container.read(tasksProvider).requireValue.single;
         expect(edited.reminderEnabled, isTrue);
+        expect(edited.reminderLeadMinutes, 5);
         expect(
           (scheduled().single as Map)['localDate'],
           later.toIso8601String(),
@@ -173,6 +177,42 @@ void main() {
           container.read(tasksProvider).requireValue.single.reminderEnabled,
           isFalse,
         );
+        await expectLater(
+          controller.save(
+            title: 'Too early',
+            note: '',
+            category: TaskCategory.work,
+            priority: TaskPriority.low,
+            dueDate: DateTime.now().add(const Duration(minutes: 30)),
+            hasDueTime: true,
+            reminderEnabled: true,
+            reminderLeadMinutes: 60,
+          ),
+          throwsA(isA<ReminderInPastException>()),
+        );
+        await controller.save(
+          existing: container.read(tasksProvider).requireValue.single,
+          title: 'Daily',
+          note: '',
+          category: TaskCategory.work,
+          priority: TaskPriority.low,
+          dueDate: dayOnly(DateTime.now()),
+          hasDueTime: true,
+          reminderEnabled: true,
+          repeatDaily: true,
+          reminderLeadMinutes: 1440,
+        );
+        await controller.toggle(
+          container.read(tasksProvider).requireValue.single,
+        );
+        expect(scheduled(), hasLength(1));
+        expect((scheduled().single as Map)['daily'], isTrue);
+        expect((scheduled().single as Map)['completedDays'], [
+          dayKey(DateTime.now()),
+        ]);
+        final stored = Todo.fromMap(box.get(original.id) as Map);
+        expect(stored.completedDays, [dayKey(DateTime.now())]);
+        expect(stored.reminderLeadMinutes, 1440);
       } finally {
         container.dispose();
         await box.close();

@@ -1,7 +1,7 @@
 name: shiguang_todo
 description: 简单、专注、离线可用的中文待办清单。
 publish_to: none
-version: 1.2.0+3
+version: 1.3.0+4
 
 environment:
   sdk: ^3.13.0

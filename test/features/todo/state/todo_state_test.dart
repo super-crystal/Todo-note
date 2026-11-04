@@ -27,7 +27,7 @@ void main() {
     category: category,
   );
 
-  test('today includes overdue, excludes tomorrow and changes at midnight', () {
+  test('today includes future deadlines, overdue and long-term tasks', () {
     final tasks = [
       task('overdue', due: DateTime(2026, 11, 3)),
       task('today', due: DateTime(2026, 11, 4)),
@@ -38,10 +38,12 @@ void main() {
     expect(const TaskQuery().apply(tasks, now).map((t) => t.id), [
       'overdue',
       'today',
+      'tomorrow',
+      'undated',
     ]);
     expect(
       const TaskQuery().apply(tasks, DateTime(2026, 11, 5)).map((t) => t.id),
-      ['overdue', 'today', 'tomorrow'],
+      ['overdue', 'today', 'tomorrow', 'undated'],
     );
     expect(const TaskQuery(view: TaskView.planned).apply(tasks, now).length, 3);
   });
@@ -73,29 +75,32 @@ void main() {
     );
   });
 
-  test('daily progress excludes overdue and undated tasks', () {
-    final scheduled = task('today', due: DateTime(2026, 11, 4));
-    final finished = task(
-      'finished',
-      due: DateTime(2026, 11, 4),
-      completed: true,
-    );
-    final overdue = task('overdue', due: DateTime(2026, 11, 3));
-    final progress = DailyProgress.fromTasks([
-      scheduled,
-      finished,
-      overdue,
-      task('undated'),
-    ], now);
-    expect(progress.total, 2);
-    expect(progress.completed, 1);
-    expect(progress.pending, 1);
-    expect(progress.fraction, .5);
-    expect(DailyProgress.fromTasks([], now).fraction, 0);
-    expect(overdue.isOverdue(now), isTrue);
-    expect(overdue.toggle(now).isOverdue(now), isFalse);
-    expect(scheduled.isOverdue(now), isFalse);
-  });
+  test(
+    'daily progress follows visible future, overdue and long-term tasks',
+    () {
+      final scheduled = task('today', due: DateTime(2026, 11, 4));
+      final finished = task(
+        'finished',
+        due: DateTime(2026, 11, 4),
+        completed: true,
+      );
+      final overdue = task('overdue', due: DateTime(2026, 11, 3));
+      final progress = DailyProgress.fromTasks([
+        scheduled,
+        finished,
+        overdue,
+        task('undated'),
+      ], now);
+      expect(progress.total, 4);
+      expect(progress.completed, 1);
+      expect(progress.pending, 3);
+      expect(progress.fraction, .25);
+      expect(DailyProgress.fromTasks([], now).fraction, 0);
+      expect(overdue.isOverdue(now), isTrue);
+      expect(overdue.toggle(now).isOverdue(now), isFalse);
+      expect(scheduled.isOverdue(now), isFalse);
+    },
+  );
 
   test(
     'controller saves, edits, toggles and restores through repository',

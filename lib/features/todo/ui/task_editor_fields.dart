@@ -86,10 +86,19 @@ class TaskTextFields extends StatelessWidget {
 }
 
 class TaskDateField extends StatelessWidget {
-  const TaskDateField({super.key, this.date, this.onPick, this.onClear});
+  const TaskDateField({
+    super.key,
+    this.date,
+    this.onPick,
+    this.onClear,
+    this.onLongTerm,
+    this.daily = false,
+  });
   final DateTime? date;
   final VoidCallback? onPick;
   final VoidCallback? onClear;
+  final VoidCallback? onLongTerm;
+  final bool daily;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -98,8 +107,21 @@ class TaskDateField extends StatelessWidget {
         child: OutlinedButton.icon(
           onPressed: onPick,
           icon: const Icon(Icons.event_outlined),
-          label: Text(date == null ? S.noDate : S.fullDate(date!)),
+          label: Text(
+            date == null
+                ? S.chooseDate
+                : daily
+                ? S.startsOn(date!)
+                : S.fullDate(date!),
+          ),
         ),
+      ),
+      const SizedBox(width: AppSpace.sm),
+      ChoiceChip(
+        key: const ValueKey('task-long-term'),
+        label: const Text(S.longTerm),
+        selected: date == null && !daily,
+        onSelected: onLongTerm == null ? null : (_) => onLongTerm!(),
       ),
       if (date != null)
         IconButton(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -27,22 +29,33 @@ class TaskSearchResults extends ConsumerStatefulWidget {
   ConsumerState<TaskSearchResults> createState() => _TaskSearchResultsState();
 }
 
-class _TaskSearchResultsState extends ConsumerState<TaskSearchResults> {
+class _TaskSearchResultsState extends ConsumerState<TaskSearchResults>
+    with WidgetsBindingObserver {
   TaskFilters _filters = const TaskFilters();
   TaskSort _sort = TaskSort.dueDate;
   final _resultsFocus = FocusNode(skipTraversal: true);
+  late final Timer _clock;
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_changed);
+    WidgetsBinding.instance.addObserver(this);
+    _clock = Timer.periodic(const Duration(minutes: 1), (_) => _changed());
   }
 
   void _changed() => setState(() {});
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _changed();
+  }
+
+  @override
   void dispose() {
     widget.controller.removeListener(_changed);
+    WidgetsBinding.instance.removeObserver(this);
+    _clock.cancel();
     _resultsFocus.dispose();
     super.dispose();
   }

@@ -1,4 +1,4 @@
-# 拾光清单 1.2.0 验证记录
+# 拾光清单 1.3.0 验证记录
 
 日期：2026-11-04。
 
@@ -6,47 +6,45 @@
 
 - Flutter 3.47.9 stable / Dart 3.13.7；JDK 21.0.9、Gradle 9.3.1、Android Gradle Plugin 9.1.0
 - Android SDK 36 / NDK 28.2.13676358
-- 包名：`cn.shiguang.shiguang_todo`，版本：`1.2.0+3`
-- 最低 Android API 24，目标 API 36；通用 arm64-v8a / armeabi-v7a / x86_64 APK
-- 原发布签名，APK Signature Scheme v2 验证通过，可覆盖升级
-- 文件：`output/shiguang-todo-1.2.0.apk`
-- 大小：56467728 字节
-- SHA-256：e7bff011aa10cda09112d3db76047fe9f33357ee5c2aad87b86911c98a3da9ef
+- 包名 `cn.shiguang.shiguang_todo`；版本 `1.3.0+4`
+- 最低 API 24，目标 API 36；通用 arm64-v8a / armeabi-v7a / x86_64
+- 原发布签名，APK v2 签名验证通过；证书 SHA-256 为 `8814edd30214ddd7cdc30d566ab0b703387b4089b5ba3309ee2809d1f79c61ae`
+- 文件 `output/shiguang-todo-1.3.0.apk`
+- 大小 56500700 字节
+- SHA-256 `a4b1d0b5eb422b16f40cd9b9c336221c018beec85e4ef1ebf3021ea507eee636`
 
-## 自动检查
+## 已完成的检查
 
-`dart format .` 已执行，`flutter analyze` 无问题；本次相关的 20 项测试通过。
+已执行 `dart format .`，`flutter analyze` 无问题。
 
-- 旧记录缺少时间/提醒字段时按 `false` 读取，原日期保留
-- 精确时间持久化、时间级逾期和完成后的逾期判断
-- 区分通知权限和准点权限，普通状态查询不发起授权请求
-- 新增、改期、完成、恢复待办、删除、撤销及移除时间后的提醒快照同步
-- 拒绝新设过去时间的提醒，保持已保存任务不变
-- 日历日期、标签、范围、分类、优先级和状态查询的相关回归用例
-- 全部页状态按钮选中背景与动画，点击搜索展开新页面
-- 搜索页关键词/标签组合、筛选、重置、清空和键盘收起
+26 项相关 Flutter 测试通过，涵盖：
 
-## Android 运行验证
+- 老记录缺失提前时长、每日模式和完成日期字段时使用兼容默认值
+- 自定义提前天／小时／分钟的组合、分量和总时长边界
+- 新设提前提醒时拒绝已过去的触发时间，保存／改期保留提醒配置
+- 每日完成日期持久化和不可变性、同一天撤销、第二天自动恢复、历史日期互不影响
+- 每日任务当天完成后仍保留用于后续日期的提醒配置，并同步完成日期供系统跳过
+- 今日展示未来截止、逾期、长期与每日任务，排除历史完成项和未开始的每日任务；进度计算一致
+- 计划月历的每日圆点、开始日期边界及按所选日期筛选完成状态
+- 编辑器“长期”和“每天重复”切换，保存后今日展示及完成行为
+- 自定义提醒对话框校验、保存、取消保留原值和常用提前 1 天选项
+- 日历、存储、标签和组合搜索的相关回归检查
 
-在独立 Android 16（API 36）x86_64 模拟器使用发布签名 APK 验证：
+`pwsh -File scripts/test-reminder-timing.ps1` 通过 3 项原生检查，直接编译执行 APK 使用的 `ReminderTiming.java`，无需新依赖：
 
-- 从 1.1.0 覆盖升级，原有标题、备注、日期、完成状态和标签保留，旧任务不自动开启提醒
-- 系统时间选择器支持 24 小时输入，保存后任务卡片显示时分与提醒图标
-- 首次出现通知权限弹窗，准点权限未授权时显示提示并可跳转“闹钟和提醒”设置
-- 授权后，`dumpsys alarm` 显示 `RTC_WAKEUP`、`window=0`、`exactAllowReason=permission`
-- 应用退到后台，实际在设定时间收到标题为 `Reminder_QA` 的系统通知；通知记录的投递时间约为截止时间后 253 毫秒（单次模拟器观察，不代表设备时延保证）
-- 终止后台应用进程后点击通知，冷启动直接打开对应任务编辑详情，日期、时间及提醒状态正确
-- 已投递任务改期后只保留一个未来闹钟，新时间正确
-- 完成任务后有效闹钟数从 1 变为 0，恢复待办后为 1
-- 删除后有效闹钟数为 0，撤销删除后为 1
-- 重启模拟器后，在再次打开应用前有效闹钟数已恢复为 1，时间与改期结果一致
-- 搜索页可组合关键词和标签，筛选入口只在展开页面内；未设日期筛选结果正确
-- 应用筛选后系统输入法 `mInputShown=false`，按钮保留“筛选任务”无障碍名称
+1. 截止前 1 天和自定义 1 天 2 小时 30 分钟，跨年减算正确。
+2. 每日提醒跳过已完成和已投递日期，尊重未来开始日期，今天已过时间时安排下一天。
+3. America/New_York 夏令时前进时保持每日 09:00，跨日实际间隔为 23 小时。
 
-测试样例仅保存在专用模拟器，未打包到 APK。未进行实体手机、所有 Android 版本、厂商省电策略和长时间闲置的兼容性实测。系统强制停止后需重新打开应用，勿扰模式及通知设置由用户控制。
+正式 release APK 构建、包名／版本检查、签名验证通过。PowerShell 构建、原生检查和发布脚本语法检查通过。
+
+## 本次运行验证限制
+
+专用 Android 16 模拟器多次启动失败，Windows WHPX 返回 `Failed to setup partition, hr=80070005`；关闭硬件加速的软件模式也退出，ADB 未出现可用设备。因此本版本未进行 Android 实际安装运行、覆盖升级、系统通知显示、后台逐日续排、重启恢复或运行日志验证。上一版本已有的通知实测不能代替本次验证。
+
+Flutter Widget 测试已运行应用和相关编辑／搜索界面，无测试捕获的布局或运行异常；这不代表 Android 系统服务已经实测。旧数据兼容由模型和仓库用例验证，签名一致已静态核对；实体手机、厂商省电和权限变化下的表现仍需实际设备验证。
 
 ## 实现依据
 
-- [Android 闹钟与重启恢复](https://developer.android.com/develop/background-work/services/alarms)
+- [Android 闹钟、重复精度限制与重启恢复](https://developer.android.com/develop/background-work/services/alarms)
 - [Android 通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)
-- [Flutter SearchAnchor 搜索过渡](https://api.flutter.dev/flutter/material/SearchAnchor-class.html)

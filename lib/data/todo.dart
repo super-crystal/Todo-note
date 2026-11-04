@@ -24,6 +24,9 @@ enum TaskPriority {
 DateTime dayOnly(DateTime value) =>
     DateTime(value.year, value.month, value.day);
 
+String dayKey(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
 @immutable
 class Todo {
   Todo({
@@ -36,9 +39,15 @@ class Todo {
     this.dueDate,
     this.hasDueTime = false,
     this.reminderEnabled = false,
+    this.reminderLeadMinutes = 0,
+    this.repeatDaily = false,
+    List<String> completedDays = const [],
     this.completedAt,
     List<String> tags = const [],
-  }) : tags = TaskTags.normalize(tags);
+  }) : tags = TaskTags.normalize(tags),
+       completedDays = List.unmodifiable(
+         completedDays.toSet().toList()..sort(),
+       );
 
   final String id;
   final String title;
@@ -50,15 +59,45 @@ class Todo {
   final DateTime? dueDate;
   final bool hasDueTime;
   final bool reminderEnabled;
+  final int reminderLeadMinutes;
+  final bool repeatDaily;
+  final List<String> completedDays;
   final DateTime? completedAt;
-  bool get isCompleted => completedAt != null;
+  bool get isCompleted => isCompletedOn(DateTime.now());
+  bool get isLongTerm => dueDate == null && !repeatDaily;
+  DateTime get dailyStart => dayOnly(dueDate ?? createdAt);
 
-  bool isOverdue(DateTime now) =>
-      !isCompleted &&
-      dueDate != null &&
+  bool isCompletedOn(DateTime date) =>
+      repeatDaily ? completedDays.contains(dayKey(date)) : completedAt != null;
+
+  bool occursOn(DateTime date) => repeatDaily
+      ? !dayOnly(date).isBefore(dailyStart)
+      : dueDate != null && dayOnly(dueDate!) == dayOnly(date);
+
+  DateTime? deadlineOn(DateTime date) {
+    if (!repeatDaily) return dueDate;
+    if (!occursOn(date)) return null;
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      hasDueTime ? dueDate!.hour : 0,
+      hasDueTime ? dueDate!.minute : 0,
+    );
+  }
+
+  bool visibleToday(DateTime now) {
+    if (repeatDaily) return occursOn(now);
+    return !isCompletedOn(now) ||
+        (completedAt != null && dayOnly(completedAt!) == dayOnly(now));
+  }
+
+  bool isOverdue(DateTime now, {DateTime? occurrence}) =>
+      !isCompletedOn(occurrence ?? now) &&
+      deadlineOn(occurrence ?? now) != null &&
       (hasDueTime
-          ? dueDate!.isBefore(now)
-          : dayOnly(dueDate!).isBefore(dayOnly(now)));
+          ? deadlineOn(occurrence ?? now)!.isBefore(now)
+          : dayOnly(deadlineOn(occurrence ?? now)!).isBefore(dayOnly(now)));
 
   Todo toggle(DateTime now) => Todo(
     id: id,
@@ -71,7 +110,14 @@ class Todo {
     dueDate: dueDate,
     hasDueTime: hasDueTime,
     reminderEnabled: reminderEnabled,
-    completedAt: isCompleted ? null : now,
+    reminderLeadMinutes: reminderLeadMinutes,
+    repeatDaily: repeatDaily,
+    completedDays: !repeatDaily
+        ? completedDays
+        : isCompletedOn(now)
+        ? completedDays.where((day) => day != dayKey(now)).toList()
+        : [...completedDays, dayKey(now)],
+    completedAt: isCompletedOn(now) ? null : now,
   );
 
   Map<String, Object?> toMap() => {
@@ -86,6 +132,9 @@ class Todo {
     'dueDate': dueDate?.toIso8601String(),
     'hasDueTime': hasDueTime,
     'reminderEnabled': reminderEnabled,
+    'reminderLeadMinutes': reminderLeadMinutes,
+    'repeatDaily': repeatDaily,
+    'completedDays': completedDays,
     'completedAt': completedAt?.toIso8601String(),
   };
 
@@ -113,6 +162,11 @@ class Todo {
           : DateTime.parse(data['completedAt'] as String),
       hasDueTime: data['hasDueTime'] as bool? ?? false,
       reminderEnabled: data['reminderEnabled'] as bool? ?? false,
+      reminderLeadMinutes: data['reminderLeadMinutes'] as int? ?? 0,
+      repeatDaily: data['repeatDaily'] as bool? ?? false,
+      completedDays: data['completedDays'] == null
+          ? const []
+          : (data['completedDays'] as List).cast<String>(),
     );
   }
 }

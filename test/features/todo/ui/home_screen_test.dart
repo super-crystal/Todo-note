@@ -71,6 +71,62 @@ void main() {
       tester.view.resetDevicePixelRatio();
     }
   });
+  testWidgets(
+    'future tasks show today and editor switches long-term and daily',
+    (tester) async {
+      final now = DateTime.now();
+      final repository = _MemoryRepository([
+        Todo(
+          id: 'future',
+          title: '未来的任务',
+          createdAt: now,
+          dueDate: DateTime(now.year, now.month, now.day + 7),
+        ),
+      ]);
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      try {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              repositoryProvider.overrideWith((ref) async => repository),
+            ],
+            child: const ShiguangApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('未来的任务'));
+        await tester.tap(find.text('未来的任务'));
+        await tester.pumpAndSettle();
+        final longTerm = find.byKey(const ValueKey('task-long-term'));
+        await tester.ensureVisible(longTerm);
+        await tester.tap(longTerm);
+        await tester.tap(find.text(S.save));
+        await tester.pumpAndSettle();
+        expect(repository.readAll().single.isLongTerm, isTrue);
+        await tester.ensureVisible(find.text('未来的任务'));
+        await tester.tap(find.text('未来的任务'));
+        await tester.pumpAndSettle();
+        final daily = find.byKey(const ValueKey('task-daily'));
+        await tester.ensureVisible(daily);
+        await tester.tap(daily);
+        await tester.tap(find.text(S.save));
+        await tester.pumpAndSettle();
+        expect(repository.readAll().single.repeatDaily, isTrue);
+        expect(repository.readAll().single.dueDate, dayOnly(now));
+        await tester.ensureVisible(find.byType(Checkbox));
+        await tester.tap(find.byType(Checkbox));
+        await tester.pumpAndSettle();
+        expect(repository.readAll().single.completedDays, [dayKey(now)]);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      }
+    },
+  );
+
   testWidgets('calendar dots and selected day switch the task details', (
     tester,
   ) async {

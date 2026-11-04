@@ -13,6 +13,7 @@ import android.os.Build
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.TimeZone
 
 internal object TaskReminders {
     private const val STORE = "task_reminders_v1"
@@ -58,11 +59,50 @@ internal object TaskReminders {
     }
 
     private fun dueTime(entry: JSONObject): Long = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.ROOT)
-        .apply { isLenient = false }.parse(entry.getString("localDate").take(23))!!.time
+        .apply { isLenient = false }.parse(occurrence(entry).take(23))!!.time
+
+    private fun occurrence(entry: JSONObject): String =
+        if (entry.optBoolean("daily")) entry.optString("scheduledDate", entry.getString("localDate"))
+        else entry.getString("localDate")
+
+    private fun triggerTime(entry: JSONObject) = ReminderTiming.triggerAt(dueTime(entry), entry.optInt("leadMinutes"))
+
+    private fun completed(entry: JSONObject, date: String): Boolean {
+        val days = entry.optJSONArray("completedDays") ?: return false
+        for (i in 0 until days.length()) if (days.getString(i) == date.take(10)) return true
+        return false
+    }
+
+    private fun sameSchedule(a: JSONObject, b: JSONObject) =
+        a.optString("localDate") == b.optString("localDate") &&
+        a.optInt("leadMinutes") == b.optInt("leadMinutes") &&
+        a.optBoolean("daily") == b.optBoolean("daily")
+
+    private fun nextDaily(entry: JSONObject): String {
+        val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.ROOT)
+        val anchor = format.parse(entry.getString("localDate").take(23))!!.time
+        val days = entry.optJSONArray("completedDays")
+        val done = mutableSetOf<String>()
+        if (days != null) for (i in 0 until days.length()) done.add(days.getString(i))
+        val next = ReminderTiming.nextDaily(anchor, System.currentTimeMillis(),
+            entry.optInt("leadMinutes"), done, entry.optString("lastDeliveredDate"), TimeZone.getDefault())
+        return format.format(java.util.Date(next))
+    }
+
+    private fun storeEntry(context: Context, id: String, entry: JSONObject) {
+        persist(context, entries(context).put(id, entry))
+    }
 
     private fun schedule(context: Context, id: String, entry: JSONObject) {
-        val due = dueTime(entry)
-        if (entry.optBoolean("delivered")) return
+        if (entry.optBoolean("daily")) {
+            val cached = entry.optString("scheduledDate")
+            if (cached.isEmpty() || completed(entry, cached) ||
+                entry.optString("lastDeliveredDate") == cached.take(10)) {
+                entry.put("scheduledDate", nextDaily(entry))
+                storeEntry(context, id, entry)
+            }
+        } else if (entry.optBoolean("delivered")) return
+        val due = triggerTime(entry)
         if (due <= System.currentTimeMillis()) {
             fire(context, id)
             return
@@ -89,15 +129,18 @@ internal object TaskReminders {
             val entry = JSONObject(task)
             dueTime(entry)
             val previous = old.optJSONObject(id)
-            if (previous?.optString("localDate") == entry.getString("localDate")) {
+            if (previous != null && sameSchedule(previous, entry)) {
                 entry.put("delivered", previous.optBoolean("delivered"))
+                if (previous.has("scheduledDate")) entry.put("scheduledDate", previous.getString("scheduledDate"))
+                if (previous.has("lastDeliveredDate")) entry.put("lastDeliveredDate", previous.getString("lastDeliveredDate"))
             }
             next.put(id, entry)
         }
         // Persist desired state before changing system alarms so boot/launch can reconcile.
         persist(context, next)
         for (id in old.keys()) {
-            if (!next.has(id) || old.getJSONObject(id).optString("localDate") != next.getJSONObject(id).optString("localDate")) cancel(context, id)
+            if (!next.has(id) || !sameSchedule(old.getJSONObject(id), next.getJSONObject(id)) ||
+                old.getJSONObject(id).optJSONArray("completedDays").toString() != next.getJSONObject(id).optJSONArray("completedDays").toString()) cancel(context, id)
         }
         for (id in next.keys()) schedule(context, id, next.getJSONObject(id))
     }
@@ -113,8 +156,14 @@ internal object TaskReminders {
     fun fire(context: Context, id: String) {
         val saved = entries(context)
         val entry = saved.optJSONObject(id) ?: return
-        if (entry.optBoolean("delivered")) return
-        if (dueTime(entry) > System.currentTimeMillis()) {
+        if (!entry.optBoolean("daily") && entry.optBoolean("delivered")) return
+        if (entry.optBoolean("daily") && (!entry.has("scheduledDate") ||
+            completed(entry, occurrence(entry)) ||
+            entry.optString("lastDeliveredDate") == occurrence(entry).take(10))) {
+            schedule(context, id, entry)
+            return
+        }
+        if (triggerTime(entry) > System.currentTimeMillis()) {
             schedule(context, id, entry)
             return
         }
@@ -128,12 +177,14 @@ internal object TaskReminders {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, CHANNEL) else Notification.Builder(context)
-        val note = entry.optString("note").ifBlank { "这项任务到期了" }
+        val deadline = SimpleDateFormat("M月d日 HH:mm", Locale.CHINA).format(java.util.Date(dueTime(entry)))
+        val reminderText = if (entry.optInt("leadMinutes") > 0) "截止时间：$deadline" else "这项任务到期了"
+        val note = entry.optString("note").let { if (it.isBlank()) reminderText else "$reminderText\n$it" }
         val notification = builder.setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(entry.getString("title")).setContentText(note)
             .setStyle(Notification.BigTextStyle().bigText(note))
             .setCategory(Notification.CATEGORY_REMINDER).setContentIntent(open)
-            .setAutoCancel(true).setShowWhen(true).setWhen(dueTime(entry))
+            .setAutoCancel(true).setShowWhen(true).setWhen(triggerTime(entry))
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .apply {
                 if (Build.VERSION.SDK_INT < 26) {
@@ -143,8 +194,12 @@ internal object TaskReminders {
             }.build()
         try {
             manager(context).notify(id, 0, notification)
-            entry.put("delivered", true)
+            if (entry.optBoolean("daily")) {
+                entry.put("lastDeliveredDate", occurrence(entry).take(10))
+                entry.remove("scheduledDate")
+            } else entry.put("delivered", true)
             persist(context, saved)
+            if (entry.optBoolean("daily")) schedule(context, id, entry)
         } catch (_: SecurityException) {
             // A permission change must not crash a background receiver.
         }

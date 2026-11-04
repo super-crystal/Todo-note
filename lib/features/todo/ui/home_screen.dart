@@ -339,7 +339,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 if (_view == TaskView.planned) ..._calendarHeader(tasks),
                 if (ref.watch(reminderStatusProvider) != ReminderAccess.ready &&
                     tasks.any(
-                      (task) => task.reminderEnabled && !task.isCompleted,
+                      (task) =>
+                          task.reminderEnabled &&
+                          (task.repeatDaily || !task.isCompleted),
                     ))
                   ReminderAccessHint(
                     access: ref.watch(reminderStatusProvider),
@@ -374,9 +376,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     key: ValueKey(task.id),
                     task: task,
                     now: _now,
+                    occurrenceDate: _view == TaskView.planned
+                        ? _selectedDay
+                        : null,
                     onToggle: () => _action(
                       task,
-                      () => ref.read(tasksProvider.notifier).toggle(task),
+                      () => ref
+                          .read(tasksProvider.notifier)
+                          .toggle(
+                            task,
+                            date: task.repeatDaily && _view == TaskView.planned
+                                ? _selectedDay
+                                : null,
+                          ),
                     ),
                     onEdit: () => openTaskEditor(context, task: task),
                     onDelete: () => _delete(task),

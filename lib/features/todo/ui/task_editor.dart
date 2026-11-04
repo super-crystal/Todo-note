@@ -9,6 +9,7 @@ import '../state/todo_state.dart';
 import '../state/reminder_service.dart';
 import 'reminder_access_hint.dart';
 import 'task_editor_fields.dart';
+import 'reminder_lead_field.dart';
 
 Future<void> openTaskEditor(
   BuildContext context, {
@@ -52,6 +53,8 @@ class _TaskEditorState extends ConsumerState<TaskEditor>
   DateTime? _dueDate;
   bool _hasDueTime = false;
   bool _reminderEnabled = false;
+  int _reminderLeadMinutes = 0;
+  bool _repeatDaily = false;
   ReminderAccess _access = ReminderAccess.ready;
   bool _saving = false;
   String? _error;
@@ -67,6 +70,8 @@ class _TaskEditorState extends ConsumerState<TaskEditor>
     _priority = widget.task?.priority ?? TaskPriority.low;
     _hasDueTime = widget.task?.hasDueTime ?? false;
     _reminderEnabled = widget.task?.reminderEnabled ?? false;
+    _reminderLeadMinutes = widget.task?.reminderLeadMinutes ?? 0;
+    _repeatDaily = widget.task?.repeatDaily ?? false;
     _dueDate = widget.task != null
         ? widget.task!.dueDate
         : widget.initialDate ??
@@ -187,6 +192,8 @@ class _TaskEditorState extends ConsumerState<TaskEditor>
             dueDate: _dueDate,
             hasDueTime: _hasDueTime,
             reminderEnabled: _reminderEnabled,
+            reminderLeadMinutes: _reminderLeadMinutes,
+            repeatDaily: _repeatDaily,
           );
       if (mounted) Navigator.pop(context);
     } on ReminderInPastException {
@@ -246,6 +253,15 @@ class _TaskEditorState extends ConsumerState<TaskEditor>
                         const SizedBox(height: AppSpace.sm),
                         TaskDateField(
                           date: _dueDate,
+                          daily: _repeatDaily,
+                          onLongTerm: _saving
+                              ? null
+                              : () => setState(() {
+                                  _dueDate = null;
+                                  _hasDueTime = false;
+                                  _reminderEnabled = false;
+                                  _repeatDaily = false;
+                                }),
                           onPick: _saving ? null : _pickDate,
                           onClear: _saving
                               ? null
@@ -253,6 +269,21 @@ class _TaskEditorState extends ConsumerState<TaskEditor>
                                   _dueDate = null;
                                   _hasDueTime = false;
                                   _reminderEnabled = false;
+                                  _repeatDaily = false;
+                                }),
+                        ),
+                        SwitchListTile(
+                          key: const ValueKey('task-daily'),
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text(S.repeatDaily),
+                          value: _repeatDaily,
+                          onChanged: _saving
+                              ? null
+                              : (value) => setState(() {
+                                  _repeatDaily = value;
+                                  if (value) {
+                                    _dueDate ??= dayOnly(DateTime.now());
+                                  }
                                 }),
                         ),
                         if (_dueDate != null)
@@ -271,7 +302,7 @@ class _TaskEditorState extends ConsumerState<TaskEditor>
                         SwitchListTile(
                           key: const ValueKey('task-reminder'),
                           contentPadding: EdgeInsets.zero,
-                          title: const Text(S.remindAtDue),
+                          title: const Text(S.taskReminder),
                           subtitle: !_hasDueTime
                               ? const Text(S.reminderNeedsTime)
                               : null,
@@ -280,6 +311,15 @@ class _TaskEditorState extends ConsumerState<TaskEditor>
                               ? null
                               : _setReminder,
                         ),
+                        if (_reminderEnabled)
+                          ReminderLeadField(
+                            minutes: _reminderLeadMinutes,
+                            onChanged: _saving
+                                ? null
+                                : (value) => setState(
+                                    () => _reminderLeadMinutes = value,
+                                  ),
+                          ),
                         if (_reminderEnabled && _access != ReminderAccess.ready)
                           ReminderAccessHint(
                             access: _access,

@@ -42,17 +42,25 @@ class TasksController extends AsyncNotifier<List<Todo>> {
     List<String>? tags,
     bool? hasDueTime,
     bool? reminderEnabled,
+    int? reminderLeadMinutes,
+    bool? repeatDaily,
   }) async {
     final now = DateTime.now();
     final timed = hasDueTime ?? existing?.hasDueTime ?? false;
     final remind = reminderEnabled ?? existing?.reminderEnabled ?? false;
+    final lead = reminderLeadMinutes ?? existing?.reminderLeadMinutes ?? 0;
+    final daily = repeatDaily ?? existing?.repeatDaily ?? false;
     final unchangedReminder =
-        existing?.reminderEnabled == true && existing?.dueDate == dueDate;
+        existing?.reminderEnabled == true &&
+        existing?.dueDate == dueDate &&
+        existing?.reminderLeadMinutes == lead &&
+        existing?.repeatDaily == daily;
     if (dueDate != null &&
         timed &&
         remind &&
+        !daily &&
         !unchangedReminder &&
-        !dueDate.isAfter(now) &&
+        !dueDate.subtract(Duration(minutes: lead)).isAfter(now) &&
         existing?.isCompleted != true) {
       throw const ReminderInPastException();
     }
@@ -67,7 +75,14 @@ class TasksController extends AsyncNotifier<List<Todo>> {
       dueDate: dueDate == null ? null : (timed ? dueDate : dayOnly(dueDate)),
       hasDueTime: dueDate != null && timed,
       reminderEnabled: dueDate != null && timed && remind,
-      completedAt: existing?.completedAt,
+      reminderLeadMinutes: lead,
+      repeatDaily: daily,
+      completedDays: daily && existing?.repeatDaily == true
+          ? existing!.completedDays
+          : const [],
+      completedAt: existing?.repeatDaily == daily
+          ? existing?.completedAt
+          : null,
     );
     await restore(task);
   }
@@ -81,7 +96,8 @@ class TasksController extends AsyncNotifier<List<Todo>> {
         .reconcile(state.requireValue);
   }
 
-  Future<void> toggle(Todo task) => restore(task.toggle(DateTime.now()));
+  Future<void> toggle(Todo task, {DateTime? date}) =>
+      restore(task.toggle(date ?? DateTime.now()));
 
   Future<void> delete(Todo task) async {
     final repository = await ref.read(repositoryProvider.future);
@@ -105,15 +121,10 @@ class DailyProgress {
   double get fraction => total == 0 ? 0 : completed / total;
 
   factory DailyProgress.fromTasks(List<Todo> tasks, DateTime now) {
-    final today = dayOnly(now);
-    final scheduled = tasks
-        .where(
-          (task) => task.dueDate != null && dayOnly(task.dueDate!) == today,
-        )
-        .toList();
+    final scheduled = tasks.where((task) => task.visibleToday(now)).toList();
     return DailyProgress._(
       scheduled.length,
-      scheduled.where((task) => task.isCompleted).length,
+      scheduled.where((task) => task.isCompletedOn(now)).length,
     );
   }
 }
@@ -144,7 +155,7 @@ class TaskQuery {
   final bool undatedOnly;
 
   List<Todo> apply(List<Todo> tasks, DateTime now) {
-    final today = dayOnly(now);
+    final referenceDate = view == TaskView.planned ? dateFrom ?? now : now;
     final words = search
         .trim()
         .toLowerCase()
@@ -153,7 +164,9 @@ class TaskQuery {
         .where((word) => word.isNotEmpty)
         .toList();
     final result = tasks.where((task) {
-      if (completed != null && task.isCompleted != completed) return false;
+      if (completed != null && task.isCompletedOn(referenceDate) != completed) {
+        return false;
+      }
       if (category != null && category != task.category) return false;
       if (priority != null && priority != task.priority) return false;
       if (tag != null &&
@@ -162,7 +175,13 @@ class TaskQuery {
           )) {
         return false;
       }
-      final due = task.dueDate == null ? null : dayOnly(task.dueDate!);
+      final due = task.repeatDaily
+          ? (dateFrom != null && dayOnly(dateFrom!).isAfter(task.dailyStart)
+                ? dayOnly(dateFrom!)
+                : task.dailyStart)
+          : task.dueDate == null
+          ? null
+          : dayOnly(task.dueDate!);
       if (undatedOnly) {
         if (due != null) return false;
       } else {
@@ -179,18 +198,19 @@ class TaskQuery {
               .toLowerCase();
       if (!words.every(content.contains)) return false;
       return switch (view) {
-        TaskView.today =>
-          task.dueDate != null && !dayOnly(task.dueDate!).isAfter(today),
-        TaskView.planned => task.dueDate != null,
+        TaskView.today => task.visibleToday(now),
+        TaskView.planned => task.dueDate != null || task.repeatDaily,
         TaskView.all => true,
       };
     }).toList();
     result.sort((a, b) {
       int compareDate() {
-        if (a.dueDate == null && b.dueDate == null) return 0;
-        if (a.dueDate == null) return 1;
-        if (b.dueDate == null) return -1;
-        return a.dueDate!.compareTo(b.dueDate!);
+        final aDate = a.deadlineOn(referenceDate);
+        final bDate = b.deadlineOn(referenceDate);
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return aDate.compareTo(bDate);
       }
 
       final primary = switch (sort) {

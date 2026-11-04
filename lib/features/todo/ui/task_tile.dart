@@ -12,6 +12,7 @@ class TaskTile extends StatelessWidget {
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
+    this.occurrenceDate,
   });
 
   final Todo task;
@@ -19,12 +20,16 @@ class TaskTile extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final DateTime? occurrenceDate;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final overdue = task.isOverdue(now);
+    final date = occurrenceDate ?? now;
+    final completed = task.isCompletedOn(date);
+    final deadline = task.deadlineOn(date);
+    final overdue = task.isOverdue(now, occurrence: date);
     final priorityColor = switch (task.priority) {
       TaskPriority.high => colors.error,
       TaskPriority.medium => colors.tertiary,
@@ -44,11 +49,11 @@ class TaskTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Checkbox(
-                value: task.isCompleted,
+                value: completed,
                 onChanged: (_) => onToggle(),
                 shape: const CircleBorder(),
                 side: BorderSide(color: priorityColor, width: 1.6),
-                semanticLabel: task.isCompleted ? S.pending : S.completed,
+                semanticLabel: completed ? S.pending : S.completed,
               ),
               Expanded(
                 child: Padding(
@@ -59,10 +64,10 @@ class TaskTile extends StatelessWidget {
                       Text(
                         task.title,
                         style: theme.textTheme.titleMedium?.copyWith(
-                          decoration: task.isCompleted
+                          decoration: completed
                               ? TextDecoration.lineThrough
                               : null,
-                          color: task.isCompleted
+                          color: completed
                               ? colors.onSurfaceVariant
                               : colors.onSurface,
                         ),
@@ -89,12 +94,25 @@ class TaskTile extends StatelessWidget {
                               color: colors.primary,
                             ),
                           ),
-                          if (task.dueDate != null)
+                          if (task.repeatDaily)
+                            _Meta(
+                              icon: Icons.repeat,
+                              label: S.daily,
+                              color: colors.primary,
+                            ),
+                          if (task.isLongTerm)
+                            _Meta(
+                              icon: Icons.all_inclusive,
+                              label: S.longTerm,
+                              color: colors.primary,
+                            ),
+                          if (deadline != null &&
+                              (!task.repeatDaily || task.hasDueTime))
                             _Meta(
                               icon: Icons.event_outlined,
                               label:
                                   '${overdue ? '${S.overdue} · ' : ''}'
-                                  '${S.deadline(task.dueDate!, task.hasDueTime)}',
+                                  '${task.repeatDaily ? S.time(deadline) : S.deadline(deadline, task.hasDueTime)}',
                               color: overdue
                                   ? colors.error
                                   : colors.onSurfaceVariant,
@@ -105,10 +123,10 @@ class TaskTile extends StatelessWidget {
                               label: task.priority.label,
                               color: priorityColor,
                             ),
-                          if (task.reminderEnabled && !task.isCompleted)
+                          if (task.reminderEnabled && !completed)
                             _Meta(
                               icon: Icons.notifications_active_outlined,
-                              label: S.remindAtDue,
+                              label: S.reminderLead(task.reminderLeadMinutes),
                               color: colors.onSurfaceVariant,
                             ),
                           for (final tag in task.tags)

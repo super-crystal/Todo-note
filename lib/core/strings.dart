@@ -49,13 +49,34 @@ abstract final class S {
   static const writeError = '保存失败，请检查手机剩余空间后重试';
   static const about = '关于拾光';
   static const aboutBody = '专注当下，从容安排。\n\n任务仅保存在这台手机，无需登录。\n卸载应用或清除数据会删除清单。';
-  static const version = '版本 1.2.0 · 离线可用';
+  static const version = '版本 1.3.0 · 离线可用';
+  static const longTerm = '长期';
+  static const repeatDaily = '每天重复';
+  static const daily = '每天';
+  static const taskReminder = '任务提醒';
+  static const reminderWhen = '提醒时间';
+  static const atDeadline = '截止时';
+  static const customLead = '自定义提前时间';
+  static const days = '天';
+  static const hours = '小时';
+  static const minutes = '分钟';
+  static const confirm = '确定';
+  static const invalidLead = '请输入 1 分钟至 365 天，小时为 0–23，分钟为 0–59';
+  static String startsOn(DateTime date) => '${fullDate(date)}起';
+  static String reminderLead(int value) {
+    if (value == 0) return atDeadline;
+    final d = value ~/ 1440;
+    final h = value % 1440 ~/ 60;
+    final m = value % 60;
+    return '提前${d > 0 ? '$d天' : ''}${h > 0 ? '$h小时' : ''}${m > 0 ? '$m分钟' : ''}';
+  }
+
   static const dueTime = '截止时间';
   static const noTime = '设置时间';
   static const clearTime = '移除截止时间';
   static const remindAtDue = '到期提醒';
   static const reminderNeedsTime = '先设置截止日期和时间';
-  static const reminderPast = '提醒时间已过，请选择未来时间';
+  static const reminderPast = '提前后的提醒时间已过，请调整截止时间或提前时长';
   static const notificationAccess = '允许通知后才能收到提醒';
   static const exactAccess = '允许“闹钟和提醒”以准点通知，当前可能延迟';
   static const reminderError = '提醒暂未同步，请重试';
