@@ -111,6 +111,40 @@ class TaskDateField extends StatelessWidget {
   );
 }
 
+class TaskTimeField extends StatelessWidget {
+  const TaskTimeField({
+    super.key,
+    required this.date,
+    required this.hasTime,
+    this.onPick,
+    this.onClear,
+  });
+  final DateTime date;
+  final bool hasTime;
+  final VoidCallback? onPick;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: OutlinedButton.icon(
+          key: const ValueKey('task-time'),
+          onPressed: onPick,
+          icon: const Icon(Icons.schedule),
+          label: Text(hasTime ? S.time(date) : S.noTime),
+        ),
+      ),
+      if (hasTime)
+        IconButton(
+          tooltip: S.clearTime,
+          onPressed: onClear,
+          icon: const Icon(Icons.close),
+        ),
+    ],
+  );
+}
+
 class TaskOptionFields extends StatelessWidget {
   const TaskOptionFields({
     super.key,

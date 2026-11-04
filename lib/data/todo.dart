@@ -34,6 +34,8 @@ class Todo {
     this.category = TaskCategory.inbox,
     this.priority = TaskPriority.low,
     this.dueDate,
+    this.hasDueTime = false,
+    this.reminderEnabled = false,
     this.completedAt,
     List<String> tags = const [],
   }) : tags = TaskTags.normalize(tags);
@@ -46,13 +48,17 @@ class Todo {
   final TaskPriority priority;
   final DateTime createdAt;
   final DateTime? dueDate;
+  final bool hasDueTime;
+  final bool reminderEnabled;
   final DateTime? completedAt;
   bool get isCompleted => completedAt != null;
 
   bool isOverdue(DateTime now) =>
       !isCompleted &&
       dueDate != null &&
-      dayOnly(dueDate!).isBefore(dayOnly(now));
+      (hasDueTime
+          ? dueDate!.isBefore(now)
+          : dayOnly(dueDate!).isBefore(dayOnly(now)));
 
   Todo toggle(DateTime now) => Todo(
     id: id,
@@ -63,6 +69,8 @@ class Todo {
     priority: priority,
     createdAt: createdAt,
     dueDate: dueDate,
+    hasDueTime: hasDueTime,
+    reminderEnabled: reminderEnabled,
     completedAt: isCompleted ? null : now,
   );
 
@@ -76,6 +84,8 @@ class Todo {
     'priority': priority.name,
     'createdAt': createdAt.toIso8601String(),
     'dueDate': dueDate?.toIso8601String(),
+    'hasDueTime': hasDueTime,
+    'reminderEnabled': reminderEnabled,
     'completedAt': completedAt?.toIso8601String(),
   };
 
@@ -101,6 +111,8 @@ class Todo {
       completedAt: data['completedAt'] == null
           ? null
           : DateTime.parse(data['completedAt'] as String),
+      hasDueTime: data['hasDueTime'] as bool? ?? false,
+      reminderEnabled: data['reminderEnabled'] as bool? ?? false,
     );
   }
 }

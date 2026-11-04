@@ -15,7 +15,9 @@ class TodoRepository {
     if (title.isEmpty ||
         title.length > 120 ||
         task.note.length > 2000 ||
-        TaskTags.validate(task.tags) != null) {
+        TaskTags.validate(task.tags) != null ||
+        (task.hasDueTime && task.dueDate == null) ||
+        (task.reminderEnabled && (!task.hasDueTime || task.dueDate == null))) {
       throw ArgumentError('Invalid task content');
     }
     await _box.put(task.id, {...task.toMap(), 'title': title});

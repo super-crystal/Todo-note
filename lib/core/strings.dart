@@ -48,9 +48,22 @@ abstract final class S {
   static const loadErrorBody = '请重试。已有数据不会被自动清除。';
   static const writeError = '保存失败，请检查手机剩余空间后重试';
   static const about = '关于拾光';
-  static const aboutBody =
-      '专注当下，从容安排。\n\n任务仅保存在这台手机，无需登录。\n卸载应用或清除数据会删除清单。\n截止日期用于安排任务，当前版本不发送通知。';
-  static const version = '版本 1.1.0 · 离线可用';
+  static const aboutBody = '专注当下，从容安排。\n\n任务仅保存在这台手机，无需登录。\n卸载应用或清除数据会删除清单。';
+  static const version = '版本 1.2.0 · 离线可用';
+  static const dueTime = '截止时间';
+  static const noTime = '设置时间';
+  static const clearTime = '移除截止时间';
+  static const remindAtDue = '到期提醒';
+  static const reminderNeedsTime = '先设置截止日期和时间';
+  static const reminderPast = '提醒时间已过，请选择未来时间';
+  static const notificationAccess = '允许通知后才能收到提醒';
+  static const exactAccess = '允许“闹钟和提醒”以准点通知，当前可能延迟';
+  static const reminderError = '提醒暂未同步，请重试';
+  static const settings = '去设置';
+  static String time(DateTime value) =>
+      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+  static String deadline(DateTime value, bool hasTime) =>
+      '${fullDate(value)}${hasTime ? ' ${time(value)}' : ''}';
   static const close = '知道了';
   static const focus = '今日专注';
   static const focusEmpty = '给今天一点方向';
@@ -59,6 +72,7 @@ abstract final class S {
   static const clearDate = '移除截止日期';
   static const clearSearch = '清空搜索';
   static const searchAll = '关键词、备注或 #标签';
+  static const searchResults = '搜索结果';
   static const filters = '筛选任务';
   static const applyFilters = '应用筛选';
   static const resetFilters = '重置筛选';

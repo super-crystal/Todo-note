@@ -94,7 +94,7 @@ class TaskTile extends StatelessWidget {
                               icon: Icons.event_outlined,
                               label:
                                   '${overdue ? '${S.overdue} · ' : ''}'
-                                  '${S.fullDate(task.dueDate!)}',
+                                  '${S.deadline(task.dueDate!, task.hasDueTime)}',
                               color: overdue
                                   ? colors.error
                                   : colors.onSurfaceVariant,
@@ -104,6 +104,12 @@ class TaskTile extends StatelessWidget {
                               icon: Icons.flag_outlined,
                               label: task.priority.label,
                               color: priorityColor,
+                            ),
+                          if (task.reminderEnabled && !task.isCompleted)
+                            _Meta(
+                              icon: Icons.notifications_active_outlined,
+                              label: S.remindAtDue,
+                              color: colors.onSurfaceVariant,
                             ),
                           for (final tag in task.tags)
                             Text(

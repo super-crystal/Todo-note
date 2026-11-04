@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../data/todo.dart';
 import '../../../data/todo_repository.dart';
+import 'reminder_service.dart';
 
 final repositoryProvider = FutureProvider<TodoRepository>((ref) async {
   final directory = await getApplicationSupportDirectory();
@@ -16,13 +17,19 @@ final tasksProvider = AsyncNotifierProvider<TasksController, List<Todo>>(
   TasksController.new,
 );
 
+class ReminderInPastException implements Exception {
+  const ReminderInPastException();
+}
+
 class TasksController extends AsyncNotifier<List<Todo>> {
   int _sequence = 0;
 
   @override
   Future<List<Todo>> build() async {
     final repository = await ref.watch(repositoryProvider.future);
-    return repository.readAll();
+    final tasks = repository.readAll();
+    await ref.read(reminderStatusProvider.notifier).reconcile(tasks);
+    return tasks;
   }
 
   Future<void> save({
@@ -33,8 +40,22 @@ class TasksController extends AsyncNotifier<List<Todo>> {
     required TaskPriority priority,
     DateTime? dueDate,
     List<String>? tags,
+    bool? hasDueTime,
+    bool? reminderEnabled,
   }) async {
     final now = DateTime.now();
+    final timed = hasDueTime ?? existing?.hasDueTime ?? false;
+    final remind = reminderEnabled ?? existing?.reminderEnabled ?? false;
+    final unchangedReminder =
+        existing?.reminderEnabled == true && existing?.dueDate == dueDate;
+    if (dueDate != null &&
+        timed &&
+        remind &&
+        !unchangedReminder &&
+        !dueDate.isAfter(now) &&
+        existing?.isCompleted != true) {
+      throw const ReminderInPastException();
+    }
     final task = Todo(
       id: existing?.id ?? '${now.microsecondsSinceEpoch}-${_sequence++}',
       title: title,
@@ -43,7 +64,9 @@ class TasksController extends AsyncNotifier<List<Todo>> {
       category: category,
       priority: priority,
       createdAt: existing?.createdAt ?? now,
-      dueDate: dueDate == null ? null : dayOnly(dueDate),
+      dueDate: dueDate == null ? null : (timed ? dueDate : dayOnly(dueDate)),
+      hasDueTime: dueDate != null && timed,
+      reminderEnabled: dueDate != null && timed && remind,
       completedAt: existing?.completedAt,
     );
     await restore(task);
@@ -53,6 +76,9 @@ class TasksController extends AsyncNotifier<List<Todo>> {
     final repository = await ref.read(repositoryProvider.future);
     await repository.save(task);
     state = AsyncData(repository.readAll());
+    await ref
+        .read(reminderStatusProvider.notifier)
+        .reconcile(state.requireValue);
   }
 
   Future<void> toggle(Todo task) => restore(task.toggle(DateTime.now()));
@@ -61,6 +87,9 @@ class TasksController extends AsyncNotifier<List<Todo>> {
     final repository = await ref.read(repositoryProvider.future);
     await repository.delete(task.id);
     state = AsyncData(repository.readAll());
+    await ref
+        .read(reminderStatusProvider.notifier)
+        .reconcile(state.requireValue);
   }
 }
 

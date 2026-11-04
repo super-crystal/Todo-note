@@ -2,19 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../core/strings.dart';
+import '../../../data/todo.dart';
+import 'task_search_results.dart';
 
 class TaskSearchHeader extends SliverPersistentHeaderDelegate {
   TaskSearchHeader({
     required this.controller,
-    required this.filterCount,
-    required this.onChanged,
-    required this.onFilters,
+    required this.onEdit,
+    required this.onToggle,
+    required this.onDelete,
   });
-
-  final TextEditingController controller;
-  final int filterCount;
-  final VoidCallback onChanged;
-  final VoidCallback onFilters;
+  final SearchController controller;
+  final ValueChanged<Todo> onEdit;
+  final ValueChanged<Todo> onToggle;
+  final ValueChanged<Todo> onDelete;
 
   @override
   double get minExtent => AppSize.searchHeaderHeight;
@@ -33,47 +34,33 @@ class TaskSearchHeader extends SliverPersistentHeaderDelegate {
         horizontal: AppSpace.xl,
         vertical: AppSpace.lg,
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              key: const ValueKey('all-task-search'),
-              controller: controller,
-              onChanged: (_) => onChanged(),
-              decoration: InputDecoration(
-                hintText: S.searchAll,
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: controller.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: S.clearSearch,
-                        onPressed: () {
-                          controller.clear();
-                          onChanged();
-                        },
-                        icon: const Icon(Icons.close),
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpace.sm),
-          Semantics(
-            label: S.filters,
-            button: true,
-            onTap: onFilters,
-            child: ExcludeSemantics(
-              child: IconButton.filledTonal(
-                tooltip: S.filters,
-                onPressed: onFilters,
-                icon: Badge(
-                  isLabelVisible: filterCount > 0,
-                  label: Text('$filterCount'),
-                  child: const Icon(Icons.tune),
-                ),
-              ),
-            ),
+      child: SearchAnchor(
+        searchController: controller,
+        isFullScreen: true,
+        viewHintText: S.searchAll,
+        viewTrailing: [
+          IconButton(
+            tooltip: S.clearSearch,
+            onPressed: controller.clear,
+            icon: const Icon(Icons.close),
           ),
         ],
+        suggestionsBuilder: (_, _) => const [],
+        viewBuilder: (_) => TaskSearchResults(
+          controller: controller,
+          onEdit: onEdit,
+          onToggle: onToggle,
+          onDelete: onDelete,
+        ),
+        builder: (context, search) => SearchBar(
+          key: const ValueKey('all-task-search'),
+          hintText: S.searchAll,
+          leading: const Icon(Icons.search),
+          onTap: search.openView,
+          onChanged: (_) => search.openView(),
+          controller: search,
+          elevation: const WidgetStatePropertyAll(0),
+        ),
       ),
     ),
   );

@@ -6,6 +6,8 @@ import '../../../core/strings.dart';
 import '../../../data/todo.dart';
 import '../../../data/task_tags.dart';
 import '../state/todo_state.dart';
+import '../state/reminder_service.dart';
+import 'reminder_access_hint.dart';
 import 'task_editor_fields.dart';
 
 Future<void> openTaskEditor(
@@ -39,7 +41,8 @@ class TaskEditor extends ConsumerStatefulWidget {
   ConsumerState<TaskEditor> createState() => _TaskEditorState();
 }
 
-class _TaskEditorState extends ConsumerState<TaskEditor> {
+class _TaskEditorState extends ConsumerState<TaskEditor>
+    with WidgetsBindingObserver {
   final _form = GlobalKey<FormState>();
   late final TextEditingController _title;
   late final TextEditingController _note;
@@ -47,25 +50,33 @@ class _TaskEditorState extends ConsumerState<TaskEditor> {
   late TaskCategory _category;
   late TaskPriority _priority;
   DateTime? _dueDate;
+  bool _hasDueTime = false;
+  bool _reminderEnabled = false;
+  ReminderAccess _access = ReminderAccess.ready;
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _title = TextEditingController(text: widget.task?.title);
     _note = TextEditingController(text: widget.task?.note);
     _tags = TextEditingController(text: widget.task?.tags.join('，'));
     _category = widget.task?.category ?? TaskCategory.inbox;
     _priority = widget.task?.priority ?? TaskPriority.low;
+    _hasDueTime = widget.task?.hasDueTime ?? false;
+    _reminderEnabled = widget.task?.reminderEnabled ?? false;
     _dueDate = widget.task != null
         ? widget.task!.dueDate
         : widget.initialDate ??
               (widget.defaultToday ? dayOnly(DateTime.now()) : null);
+    if (_reminderEnabled) _refreshAccess();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _title.dispose();
     _note.dispose();
     _tags.dispose();
@@ -82,7 +93,79 @@ class _TaskEditorState extends ConsumerState<TaskEditor> {
       lastDate: DateTime(current.year > 2100 ? current.year : 2100, 12, 31),
       helpText: S.dueDate,
     );
-    if (selected != null && mounted) setState(() => _dueDate = selected);
+    if (selected != null && mounted) {
+      setState(
+        () => _dueDate = DateTime(
+          selected.year,
+          selected.month,
+          selected.day,
+          _hasDueTime ? current.hour : 0,
+          _hasDueTime ? current.minute : 0,
+        ),
+      );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _reminderEnabled) {
+      _refreshAccess();
+    }
+  }
+
+  Future<void> _refreshAccess() async {
+    final access = await ref.read(reminderServiceProvider).access();
+    if (mounted) setState(() => _access = access);
+  }
+
+  Future<void> _fixAccess() async {
+    try {
+      if (_access == ReminderAccess.unavailable) {
+        await _refreshAccess();
+      } else {
+        await ref.read(reminderServiceProvider).openSettings(_access);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _access = ReminderAccess.unavailable);
+    }
+  }
+
+  Future<void> _setReminder(bool value) async {
+    setState(() => _reminderEnabled = value);
+    if (value) {
+      final access = await ref
+          .read(reminderServiceProvider)
+          .access(request: true);
+      if (mounted) setState(() => _access = access);
+    }
+  }
+
+  Future<void> _pickTime() async {
+    if (_dueDate == null) return;
+    final current = _dueDate!;
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: _hasDueTime
+          ? TimeOfDay.fromDateTime(current)
+          : TimeOfDay.now(),
+      helpText: S.dueTime,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _dueDate = DateTime(
+        current.year,
+        current.month,
+        current.day,
+        selected.hour,
+        selected.minute,
+      );
+      _hasDueTime = true;
+    });
+    await _setReminder(true);
   }
 
   Future<void> _save() async {
@@ -102,8 +185,17 @@ class _TaskEditorState extends ConsumerState<TaskEditor> {
             category: _category,
             priority: _priority,
             dueDate: _dueDate,
+            hasDueTime: _hasDueTime,
+            reminderEnabled: _reminderEnabled,
           );
       if (mounted) Navigator.pop(context);
+    } on ReminderInPastException {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = S.reminderPast;
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -157,8 +249,42 @@ class _TaskEditorState extends ConsumerState<TaskEditor> {
                           onPick: _saving ? null : _pickDate,
                           onClear: _saving
                               ? null
-                              : () => setState(() => _dueDate = null),
+                              : () => setState(() {
+                                  _dueDate = null;
+                                  _hasDueTime = false;
+                                  _reminderEnabled = false;
+                                }),
                         ),
+                        if (_dueDate != null)
+                          TaskTimeField(
+                            date: _dueDate!,
+                            hasTime: _hasDueTime,
+                            onPick: _saving ? null : _pickTime,
+                            onClear: _saving
+                                ? null
+                                : () => setState(() {
+                                    _dueDate = dayOnly(_dueDate!);
+                                    _hasDueTime = false;
+                                    _reminderEnabled = false;
+                                  }),
+                          ),
+                        SwitchListTile(
+                          key: const ValueKey('task-reminder'),
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text(S.remindAtDue),
+                          subtitle: !_hasDueTime
+                              ? const Text(S.reminderNeedsTime)
+                              : null,
+                          value: _reminderEnabled,
+                          onChanged: _saving || !_hasDueTime
+                              ? null
+                              : _setReminder,
+                        ),
+                        if (_reminderEnabled && _access != ReminderAccess.ready)
+                          ReminderAccessHint(
+                            access: _access,
+                            onFix: _fixAccess,
+                          ),
                         const SizedBox(height: AppSpace.lg),
                         TaskOptionFields(
                           category: _category,

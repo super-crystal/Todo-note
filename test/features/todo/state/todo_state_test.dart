@@ -8,6 +8,7 @@ import 'package:shiguang_todo/data/todo_repository.dart';
 import 'package:shiguang_todo/features/todo/state/todo_state.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final now = DateTime(2026, 11, 4, 23, 59);
   Todo task(
     String id, {

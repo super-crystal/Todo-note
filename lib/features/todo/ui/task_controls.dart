@@ -56,17 +56,12 @@ class TaskStatusChips extends StatelessWidget {
 
   Widget _button(BuildContext context, bool? value, String label, String key) {
     final active = selected == value;
-    final colors = Theme.of(context).colorScheme;
-    return TextButton(
+    return ChoiceChip(
       key: ValueKey(key),
-      onPressed: () => onChanged(value),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: active ? colors.primary : colors.onSurfaceVariant,
-          fontWeight: active ? FontWeight.bold : null,
-        ),
-      ),
+      selected: active,
+      showCheckmark: false,
+      onSelected: (_) => onChanged(value),
+      label: Text(label),
     );
   }
 }

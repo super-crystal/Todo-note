@@ -9,11 +9,12 @@ import '../../../data/todo.dart';
 import '../state/todo_state.dart';
 import '../state/calendar_state.dart';
 import '../state/task_filters.dart';
+import '../state/reminder_service.dart';
+import 'reminder_access_hint.dart';
 import 'task_editor.dart';
 import 'task_tile.dart';
 import 'task_calendar.dart';
 import 'task_controls.dart';
-import 'task_filter_sheet.dart';
 import 'task_search_bar.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -30,10 +31,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   TaskSort _sort = TaskSort.dueDate;
   late DateTime _selectedDay;
   final _search = TextEditingController();
+  final _allSearch = SearchController();
   final _resultsFocus = FocusNode(skipTraversal: true);
   final _busyIds = <String>{};
   late final Timer _clock;
   DateTime _now = DateTime.now();
+  bool _openingNotification = false;
 
   @override
   void initState() {
@@ -41,6 +44,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _selectedDay = dayOnly(_now);
     WidgetsBinding.instance.addObserver(this);
     _clock = Timer.periodic(const Duration(minutes: 1), (_) => _refreshDate());
+    ReminderService.channel.setMethodCallHandler((call) async {
+      if (call.method == 'taskOpened') await _openNotifiedTask();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openNotifiedTask());
   }
 
   void _refreshDate() {
@@ -49,7 +56,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refreshDate();
+    if (state == AppLifecycleState.resumed) {
+      _refreshDate();
+      final tasks = ref.read(tasksProvider).value;
+      if (tasks != null) {
+        ref.read(reminderStatusProvider.notifier).reconcile(tasks);
+      }
+      _openNotifiedTask();
+    }
   }
 
   @override
@@ -57,6 +71,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     WidgetsBinding.instance.removeObserver(this);
     _clock.cancel();
     _search.dispose();
+    _allSearch.dispose();
+    ReminderService.channel.setMethodCallHandler(null);
     _resultsFocus.dispose();
     super.dispose();
   }
@@ -219,16 +235,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  Future<void> _openFilters(List<Todo> tasks) async {
-    _resultsFocus.requestFocus();
-    final selected = await showTaskFilters(
-      context,
-      filters: _filters,
-      tags: TaskFilters.availableTags(tasks),
-    );
-    if (selected != null && mounted) {
-      _resultsFocus.requestFocus();
-      setState(() => _filters = selected);
+  Future<void> _openNotifiedTask() async {
+    if (_openingNotification || !mounted) return;
+    _openingNotification = true;
+    try {
+      final tasks = await ref.read(tasksProvider.future);
+      if (!mounted) return;
+      final id = await ref.read(reminderServiceProvider).takeTask();
+      if (!mounted || id == null) return;
+      for (final task in tasks) {
+        if (task.id == id) {
+          await openTaskEditor(context, task: task);
+          break;
+        }
+      }
+    } finally {
+      _openingNotification = false;
+    }
+  }
+
+  Future<void> _fixReminders(ReminderAccess access) async {
+    try {
+      if (access == ReminderAccess.unavailable) {
+        await ref
+            .read(reminderStatusProvider.notifier)
+            .reconcile(ref.read(tasksProvider).value ?? []);
+      } else {
+        await ref.read(reminderServiceProvider).openSettings(access);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text(S.reminderError)));
+      }
     }
   }
 
@@ -278,10 +317,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             SliverPersistentHeader(
               pinned: true,
               delegate: TaskSearchHeader(
-                controller: _search,
-                filterCount: _filters.activeCount,
-                onChanged: () => setState(() {}),
-                onFilters: () => _openFilters(tasks),
+                controller: _allSearch,
+                onEdit: (task) => openTaskEditor(context, task: task),
+                onToggle: (task) => _action(
+                  task,
+                  () => ref.read(tasksProvider.notifier).toggle(task),
+                ),
+                onDelete: _delete,
               ),
             ),
           SliverPadding(
@@ -295,10 +337,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               children: [
                 if (_view == TaskView.today) ..._todayHeader(tasks),
                 if (_view == TaskView.planned) ..._calendarHeader(tasks),
-                if (_view == TaskView.all && _filters.activeCount > 0) ...[
-                  TaskFilterSummary(filters: _filters),
-                  const SizedBox(height: AppSpace.sm),
-                ],
+                if (ref.watch(reminderStatusProvider) != ReminderAccess.ready &&
+                    tasks.any(
+                      (task) => task.reminderEnabled && !task.isCompleted,
+                    ))
+                  ReminderAccessHint(
+                    access: ref.watch(reminderStatusProvider),
+                    onFix: () =>
+                        _fixReminders(ref.read(reminderStatusProvider)),
+                  ),
                 if (_view != TaskView.today || tasks.isNotEmpty)
                   TaskListControls(
                     count: filtered.length,

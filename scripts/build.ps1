@@ -16,7 +16,7 @@ Invoke-Checked { & $flutter pub get }
 if (!$SkipChecks) {
     Invoke-Checked { & $dart format . }
     Invoke-Checked { & $flutter analyze }
-    Invoke-Checked { & $flutter test test/data/todo_repository_test.dart test/data/task_tags_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/state/calendar_state_test.dart test/features/todo/state/task_search_test.dart test/features/todo/ui/home_screen_test.dart }
+    Invoke-Checked { & $flutter test test/data/todo_repository_test.dart test/data/task_tags_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/state/calendar_state_test.dart test/features/todo/state/task_search_test.dart test/features/todo/state/reminder_service_test.dart test/features/todo/ui/home_screen_test.dart }
 }
 if (!(Test-Path -LiteralPath 'android/key.properties')) {
     New-Item -ItemType Directory -Force -Path '.signing' | Out-Null
@@ -33,5 +33,12 @@ if (!(Test-Path -LiteralPath 'android/key.properties')) {
 }
 Invoke-Checked { & $flutter build apk --release }
 New-Item -ItemType Directory -Force -Path output | Out-Null
-Copy-Item -LiteralPath 'build/app/outputs/flutter-apk/app-release.apk' -Destination 'output/shiguang-todo-latest.apk' -Force
-Get-FileHash -LiteralPath 'output/shiguang-todo-latest.apk' -Algorithm SHA256
+$versionLine = Select-String -LiteralPath 'pubspec.yaml' -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+'
+if (!$versionLine) { throw 'pubspec.yaml must declare a semantic app version.' }
+$apkName = "shiguang-todo-$($versionLine.Matches[0].Groups[1].Value).apk"
+$apkPath = Join-Path $projectRoot "output/$apkName"
+Copy-Item -LiteralPath 'build/app/outputs/flutter-apk/app-release.apk' -Destination $apkPath -Force
+# Keep the current APK after the replacement has succeeded.
+Get-ChildItem -LiteralPath (Join-Path $projectRoot 'output') -Filter 'shiguang-todo-*.apk' -File |
+    Where-Object FullName -ne $apkPath | Remove-Item -Force
+Get-FileHash -LiteralPath $apkPath -Algorithm SHA256

@@ -6,9 +6,26 @@ import 'package:shiguang_todo/core/strings.dart';
 import 'package:shiguang_todo/data/todo.dart';
 import 'package:shiguang_todo/data/todo_repository.dart';
 import 'package:shiguang_todo/features/todo/state/todo_state.dart';
+import 'package:shiguang_todo/features/todo/state/reminder_service.dart';
 import 'package:shiguang_todo/main.dart';
 
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(
+    () => binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      ReminderService.channel,
+      (call) async =>
+          call.method == 'status' || call.method == 'requestNotifications'
+          ? {'notifications': true, 'exact': true}
+          : null,
+    ),
+  );
+  tearDown(
+    () => binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      ReminderService.channel,
+      null,
+    ),
+  );
   testWidgets('empty title is rejected, saved task follows completion flow', (
     tester,
   ) async {
@@ -130,32 +147,46 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byType(NavigationDestination).at(2));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('all-task-search')),
-        '#周末 苹果',
-      );
+      expect(find.text(S.filters), findsNothing);
+      final pending = find.byKey(const ValueKey('status-pending'));
+      await tester.tap(pending);
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(tester.widget<ChoiceChip>(pending).selected, isTrue);
       await tester.pumpAndSettle();
-      expect(find.text('买苹果'), findsOneWidget);
-      expect(find.text('苹果派'), findsOneWidget);
-      expect(find.text('准备报告'), findsNothing);
-      await tester.tap(find.byTooltip(S.filters));
+      expect(find.text('苹果派'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('status-all')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('all-task-search')));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(SearchAnchor), findsWidgets);
+      await tester.pumpAndSettle();
+      Finder resultText(String text) => find.descendant(
+        of: find.byKey(const ValueKey('search-results')),
+        matching: find.text(text),
+      );
+      await tester.enterText(find.byType(TextField).last, '#周末 苹果');
+      await tester.pumpAndSettle();
+      expect(resultText('买苹果'), findsOneWidget);
+      expect(resultText('苹果派'), findsOneWidget);
+      expect(resultText('准备报告'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('search-filters')));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text(S.onlyUndated));
       await tester.tap(find.text(S.onlyUndated));
       await tester.tap(find.text(S.applyFilters));
       await tester.pumpAndSettle();
-      expect(find.text('买苹果'), findsNothing);
-      expect(find.text('苹果派'), findsOneWidget);
+      expect(resultText('买苹果'), findsNothing);
+      expect(resultText('苹果派'), findsOneWidget);
       expect(find.bySemanticsLabel(S.filters), findsOneWidget);
       expect(tester.testTextInput.isVisible, isFalse);
-      await tester.tap(find.byTooltip(S.filters));
+      await tester.tap(find.byKey(const ValueKey('search-filters')));
       await tester.pumpAndSettle();
       await tester.tap(find.text(S.resetFilters));
       await tester.pumpAndSettle();
-      expect(find.text('买苹果'), findsOneWidget);
+      expect(resultText('买苹果'), findsOneWidget);
       await tester.tap(find.byTooltip(S.clearSearch));
       await tester.pumpAndSettle();
-      expect(find.text('准备报告'), findsOneWidget);
+      expect(resultText('准备报告'), findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());
