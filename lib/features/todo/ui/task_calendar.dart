@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../core/app_theme.dart';
@@ -73,25 +75,49 @@ class TaskCalendar extends StatelessWidget {
                   .toList(),
             ),
             const SizedBox(height: AppSpace.sm),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                mainAxisExtent: AppSize.calendarDayHeight,
-              ),
-              itemCount: calendar.cellCount,
-              itemBuilder: (context, index) {
-                final date = calendar.dateAt(index);
-                if (date == null) return const SizedBox.shrink();
-                return _CalendarDay(
-                  key: ValueKey(date),
-                  date: date,
-                  count: calendar.countOn(date),
-                  selected: date == calendar.selectedDate,
-                  today: date == dayOnly(now),
-                  onTap: () => onSelected(date),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final dotWidth = math.max(
+                  AppSize.calendarDot,
+                  constraints.maxWidth / 7 - AppSpace.xs * 2,
+                );
+                const gap = AppSpace.xs / 2;
+                final dotsPerRow = math.max(
+                  1,
+                  ((dotWidth + gap) / (AppSize.calendarDot + gap)).floor(),
+                );
+                final dotRows = math.max(
+                  1,
+                  (calendar.maxTaskCount + dotsPerRow - 1) ~/ dotsPerRow,
+                );
+                final dotHeight =
+                    dotRows * AppSize.calendarDot + (dotRows - 1) * gap;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    mainAxisExtent: math.max(
+                      AppSize.calendarDayHeight,
+                      AppSize.calendarSelection + dotHeight + gap * 2,
+                    ),
+                  ),
+                  itemCount: calendar.cellCount,
+                  itemBuilder: (context, index) {
+                    final date = calendar.dateAt(index);
+                    if (date == null) return const SizedBox.shrink();
+                    return _CalendarDay(
+                      key: ValueKey(date),
+                      date: date,
+                      count: calendar.countOn(date),
+                      dotWidth: dotWidth,
+                      dotHeight: dotHeight,
+                      selected: date == calendar.selectedDate,
+                      today: date == dayOnly(now),
+                      onTap: () => onSelected(date),
+                    );
+                  },
                 );
               },
             ),
@@ -117,6 +143,8 @@ class _CalendarDay extends StatelessWidget {
     required this.selected,
     required this.today,
     required this.onTap,
+    required this.dotWidth,
+    required this.dotHeight,
   });
 
   final DateTime date;
@@ -124,6 +152,8 @@ class _CalendarDay extends StatelessWidget {
   final bool selected;
   final bool today;
   final VoidCallback onTap;
+  final double dotWidth;
+  final double dotHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -138,47 +168,58 @@ class _CalendarDay extends StatelessWidget {
       child: ExcludeSemantics(
         child: InkWell(
           onTap: onTap,
-          customBorder: const CircleBorder(),
+          borderRadius: BorderRadius.circular(AppSpace.sm),
           child: Center(
-            child: Container(
-              width: AppSize.calendarSelection,
-              height: AppSize.calendarSelection,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: selected ? colors.primary : Colors.transparent,
-                border: today && !selected
-                    ? Border.all(color: colors.primary)
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '${date.day}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: foreground,
-                      fontWeight: selected || today ? FontWeight.bold : null,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: AppSize.calendarSelection,
+                  height: AppSize.calendarSelection,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: selected ? colors.primary : Colors.transparent,
+                    border: today && !selected
+                        ? Border.all(color: colors.primary)
+                        : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${date.day}',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: foreground,
+                        fontWeight: selected || today ? FontWeight.bold : null,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: AppSpace.xs / 2),
-                  SizedBox.square(
-                    dimension: AppSize.calendarDot,
-                    child: count == 0
-                        ? null
-                        : DecoratedBox(
-                            key: ValueKey(
-                              'calendar-dot-${date.toIso8601String()}',
-                            ),
+                ),
+                const SizedBox(height: AppSpace.xs / 2),
+                SizedBox(
+                  key: ValueKey('calendar-dots-${date.toIso8601String()}'),
+                  width: dotWidth,
+                  height: dotHeight,
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: AppSpace.xs / 2,
+                    runSpacing: AppSpace.xs / 2,
+                    children: [
+                      for (var index = 0; index < count; index++)
+                        SizedBox.square(
+                          key: ValueKey(
+                            'calendar-dot-${date.toIso8601String()}-$index',
+                          ),
+                          dimension: AppSize.calendarDot,
+                          child: DecoratedBox(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: selected
-                                  ? colors.onPrimary
-                                  : colors.primary,
+                              color: colors.primary,
                             ),
                           ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

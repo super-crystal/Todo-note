@@ -49,7 +49,7 @@ abstract final class S {
   static const writeError = '保存失败，请检查手机剩余空间后重试';
   static const about = '关于拾光';
   static const aboutBody = '专注当下，从容安排。\n\n任务仅保存在这台手机，无需登录。\n卸载应用或清除数据会删除清单。';
-  static const version = '版本 1.3.0 · 离线可用';
+  static const version = '版本 1.3.1 · 离线可用';
   static const longTerm = '长期';
   static const repeatDaily = '每天重复';
   static const daily = '每天';
@@ -114,7 +114,7 @@ abstract final class S {
   static const previousMonth = '上个月';
   static const nextMonth = '下个月';
   static const chooseDate = '选择日期';
-  static const calendarHint = '圆点表示这一天有任务，点击日期查看详情';
+  static const calendarHint = '每个圆点代表一项当天任务，长期任务不计入';
   static const dayEmptyTitle = '这一天还没有匹配的任务';
   static const dayEmptyBody = '选择其他日期，或为这一天添加一项任务。';
   static const weekdays = ['一', '二', '三', '四', '五', '六', '日'];

@@ -135,6 +135,8 @@ void main() {
     final repository = _MemoryRepository([
       Todo(id: 'today', title: '今天的计划', createdAt: today, dueDate: today),
       Todo(id: 'other', title: '选中日期的计划', createdAt: today, dueDate: other),
+      Todo(id: 'second', title: '同日第二个任务', createdAt: today, dueDate: other),
+      Todo(id: 'long', title: '日历中的长期任务', createdAt: today),
     ]);
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -151,14 +153,25 @@ void main() {
       await tester.tap(find.byType(NavigationDestination).at(1));
       await tester.pumpAndSettle();
       expect(
-        find.byKey(ValueKey('calendar-dot-${other.toIso8601String()}')),
+        find.byKey(ValueKey('calendar-dot-${other.toIso8601String()}-0')),
         findsOneWidget,
       );
       await tester.ensureVisible(find.byKey(ValueKey(other)));
       await tester.tap(find.byKey(ValueKey(other)));
       await tester.pumpAndSettle();
       expect(find.text('选中日期的计划'), findsOneWidget);
+      expect(find.text('同日第二个任务'), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('calendar-dot-${other.toIso8601String()}-1')),
+        findsOneWidget,
+      );
       expect(find.text('今天的计划'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('long')),
+        180,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('日历中的长期任务'), findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());

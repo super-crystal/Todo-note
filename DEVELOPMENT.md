@@ -21,6 +21,10 @@ scripts/                 本地构建脚本
 
 1.3 以同一 schema 添加 `reminderLeadMinutes`（默认 0）、`repeatDaily`（默认 false）、`completedDays`（默认空数组）。每日完成记录使用本地 `yyyy-MM-dd` 日期键，不清除旧日记录、不创建重复任务；跨天查询自然恢复待办，前台页面每分钟和恢复前台时刷新。日期旁的“长期”表示无截止日期且非每日任务。所有未完成任务均可在今日查看，包括未来截止、逾期和长期任务；进度基于今日可见任务，历史已完成任务仍保留在全部页。
 
+1.3.1 不修改任务模型或 Hive 结构。计划页日期筛选允许长期任务出现在各日详情，全部／搜索页的日期范围仍排除无日期任务。日历按每项有日期／每日任务渲染一个点，按可用宽度换行并调整行高，长期任务不计入圆点。提醒使用 `setOngoing(true)`、`setAutoCancel(false)` 和 `FLAG_NO_CLEAR`；同步时静默更新升级前已经显示的普通通知。取消提醒仍走任务完成、删除、改期和关闭路径，不引入常驻后台服务。Android 14 起系统允许解锁后手动划走单条常驻通知，但“全部清除”不会移除此类通知。
+
+旧版原生提醒缓存可能没有 `completedDays`；比较缓存时按空数组处理，避免首次同步空指针及误取消旧通知。这是派生提醒缓存的兼容处理，不更改任务存储版本。
+
 提前时长按分钟计算，单次提醒时刻为截止时间减去提前分钟数，新增或改变提醒时拒绝过去时刻。每日提醒采用一次性准点闹钟逐日续排（系统重复闹钟不保证精确），使用本地 Calendar 增加日期以保留夏令时下的钟面时间。原生缓存保存待提醒的 occurrence、最近已投递日期和每日完成记录；当天完成会跳过当天 occurrence 并保留下一次提醒，删除/关闭会取消后续闹钟。旧版已投递标记在同一日期、提前时长和重复模式下沿用，避免覆盖升级重复通知。断电错过的已排提醒恢复后补发一次，再续排未来日期。
 
 Android 通知使用原生 `AlarmManager`、`BroadcastReceiver`、`NotificationManager`，通过 MethodChannel 与状态层连接，无新增包。Hive 为任务的唯一来源；状态层串行同步有效提醒快照，原生 SharedPreferences 仅保留系统重启恢复所需的提醒和已投递标记。完成、删除、移除时间或关闭提醒会取消系统闹钟及已有通知；撤销删除恢复提醒。每条任务的 PendingIntent URI 唯一，通知使用任务 ID 作 tag，避免 ID 哈希碰撞。
@@ -35,7 +39,7 @@ Android 通知使用原生 `AlarmManager`、`BroadcastReceiver`、`NotificationM
 flutter pub get
 dart format .
 flutter analyze
-flutter test test/data/todo_repository_test.dart test/data/task_tags_test.dart test/data/reminder_lead_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/state/calendar_state_test.dart test/features/todo/state/task_search_test.dart test/features/todo/state/task_schedule_test.dart test/features/todo/state/reminder_service_test.dart test/features/todo/ui/home_screen_test.dart test/features/todo/ui/reminder_lead_field_test.dart
+flutter test test/data/todo_repository_test.dart test/data/task_tags_test.dart test/data/reminder_lead_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/state/calendar_state_test.dart test/features/todo/state/task_search_test.dart test/features/todo/state/task_schedule_test.dart test/features/todo/state/reminder_service_test.dart test/features/todo/ui/home_screen_test.dart test/features/todo/ui/task_calendar_test.dart test/features/todo/ui/reminder_lead_field_test.dart
 pwsh -File scripts/test-reminder-timing.ps1
 flutter run
 ```
@@ -54,6 +58,6 @@ pwsh -ExecutionPolicy Bypass -File scripts/build.ps1
 
 Android 沿用 Flutter 稳定版模板的 SDK / NDK / Gradle 版本。Gradle 使用官方直连的二进制发行包并固定 SHA-256，以减少首次下载和避免跳转连接故障。JVM 最大堆为 3 GB，便于与模拟器同时运行。
 
-构建成功后仅在 `output/shiguang-todo-1.3.0.apk` 保留当前交付版本，文件名自动读取 `pubspec.yaml` 的版本；复制成功后清理旧的本地 APK。上传到 GitHub 的文件名同样包含版本号。标准 Flutter `build/` 为忽略的构建缓存，不作为版本归档。GitHub Release 保存历史版本。
+构建成功后仅在 `output/shiguang-todo-1.3.1.apk` 保留当前交付版本，文件名自动读取 `pubspec.yaml` 的版本；复制成功后清理旧的本地 APK。上传到 GitHub 的文件名同样包含版本号。标准 Flutter `build/` 为忽略的构建缓存，不作为版本归档。GitHub Release 保存历史版本。
 
 本次验证结果与 APK 摘要见 [验证记录](docs/VALIDATION.md)。源码提交后可运行 `pwsh -File scripts/publish.ps1` 推送并发布 APK，标签自动与应用版本一致；使用 Git Credential Manager 的现有 GitHub 登录，凭据不会写入源码或日志。上传校验大小和 SHA-256，通过后发布草稿。

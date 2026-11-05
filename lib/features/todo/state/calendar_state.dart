@@ -13,6 +13,15 @@ class CalendarMonth {
   int get leadingDays => month.weekday - DateTime.monday;
   int get daysInMonth => DateTime(month.year, month.month + 1, 0).day;
   int get cellCount => ((leadingDays + daysInMonth + 6) ~/ 7) * 7;
+  int get maxTaskCount => taskCounts.entries
+      .where(
+        (entry) =>
+            entry.key.year == month.year && entry.key.month == month.month,
+      )
+      .fold(
+        0,
+        (maximum, entry) => maximum > entry.value ? maximum : entry.value,
+      );
 
   DateTime? dateAt(int index) {
     final day = index - leadingDays + 1;

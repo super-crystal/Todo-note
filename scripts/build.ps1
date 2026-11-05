@@ -17,7 +17,7 @@ if (!$SkipChecks) {
     & (Join-Path $PSScriptRoot 'test-reminder-timing.ps1')
     Invoke-Checked { & $dart format . }
     Invoke-Checked { & $flutter analyze }
-    Invoke-Checked { & $flutter test test/data/todo_repository_test.dart test/data/task_tags_test.dart test/data/reminder_lead_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/state/calendar_state_test.dart test/features/todo/state/task_search_test.dart test/features/todo/state/task_schedule_test.dart test/features/todo/state/reminder_service_test.dart test/features/todo/ui/home_screen_test.dart test/features/todo/ui/reminder_lead_field_test.dart }
+    Invoke-Checked { & $flutter test test/data/todo_repository_test.dart test/data/task_tags_test.dart test/data/reminder_lead_test.dart test/features/todo/state/todo_state_test.dart test/features/todo/state/calendar_state_test.dart test/features/todo/state/task_search_test.dart test/features/todo/state/task_schedule_test.dart test/features/todo/state/reminder_service_test.dart test/features/todo/ui/home_screen_test.dart test/features/todo/ui/task_calendar_test.dart test/features/todo/ui/reminder_lead_field_test.dart }
 }
 if (!(Test-Path -LiteralPath 'android/key.properties')) {
     New-Item -ItemType Directory -Force -Path '.signing' | Out-Null

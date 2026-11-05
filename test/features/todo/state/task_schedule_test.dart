@@ -5,6 +5,48 @@ import 'package:shiguang_todo/features/todo/state/todo_state.dart';
 
 void main() {
   final today = DateTime(2026, 11, 4, 14);
+  test('long-term tasks appear on selected calendar dates without date-search matches or dots', () {
+    final longTerm = Todo(id: 'long', title: '长期学习', createdAt: today);
+    final done = longTerm.toggle(today);
+    final selected = DateTime(2026, 12, 20);
+    final calendar = CalendarMonth(selected, [longTerm, done]);
+    expect(calendar.countOn(selected), 0);
+    expect(calendar.maxTaskCount, 0);
+    expect(
+      TaskQuery(
+        view: TaskView.planned,
+        dateFrom: selected,
+        dateTo: selected,
+      ).apply([longTerm], today).single.id,
+      'long',
+    );
+    expect(
+      TaskQuery(
+        view: TaskView.planned,
+        completed: true,
+        dateFrom: selected,
+        dateTo: selected,
+      ).apply([done], today).single.id,
+      'long',
+    );
+    expect(
+      TaskQuery(
+        view: TaskView.planned,
+        dateFrom: selected,
+        dateTo: selected,
+      ).apply([done], today),
+      isEmpty,
+    );
+    expect(
+      TaskQuery(
+        view: TaskView.all,
+        completed: null,
+        dateFrom: selected,
+        dateTo: selected,
+      ).apply([longTerm], today),
+      isEmpty,
+    );
+  });
   Todo daily({List<String> done = const []}) => Todo(
     id: 'daily',
     title: '读书',

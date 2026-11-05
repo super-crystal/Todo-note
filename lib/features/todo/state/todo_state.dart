@@ -184,7 +184,7 @@ class TaskQuery {
           : dayOnly(task.dueDate!);
       if (undatedOnly) {
         if (due != null) return false;
-      } else {
+      } else if (!(view == TaskView.planned && task.isLongTerm)) {
         if (dateFrom != null &&
             (due == null || due.isBefore(dayOnly(dateFrom!)))) {
           return false;
@@ -199,7 +199,7 @@ class TaskQuery {
       if (!words.every(content.contains)) return false;
       return switch (view) {
         TaskView.today => task.visibleToday(now),
-        TaskView.planned => task.dueDate != null || task.repeatDaily,
+        TaskView.planned => true,
         TaskView.all => true,
       };
     }).toList();

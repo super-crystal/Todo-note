@@ -17,6 +17,13 @@ void main() {
           completedAt: day,
         ),
         Todo(id: 'c', title: 'c', createdAt: day),
+        for (var index = 0; index < 8; index++)
+          Todo(
+            id: 'future-$index',
+            title: 'future',
+            createdAt: day,
+            dueDate: DateTime(2026, 12, 1),
+          ),
       ]);
       expect(month.leadingDays, 6);
       expect(month.cellCount, 42);
@@ -25,6 +32,7 @@ void main() {
       expect(month.dateAt(35), DateTime(2026, 11, 30));
       expect(month.dateAt(36), isNull);
       expect(month.countOn(day), 2);
+      expect(month.maxTaskCount, 2);
       expect(month.countOn(DateTime(2026, 11, 5)), 0);
     },
   );

@@ -45,7 +45,7 @@ void main() {
       const TaskQuery().apply(tasks, DateTime(2026, 11, 5)).map((t) => t.id),
       ['overdue', 'today', 'tomorrow', 'undated'],
     );
-    expect(const TaskQuery(view: TaskView.planned).apply(tasks, now).length, 3);
+    expect(const TaskQuery(view: TaskView.planned).apply(tasks, now).length, 4);
   });
 
   test('search, category, completion and priority order compose', () {

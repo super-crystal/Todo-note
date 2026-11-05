@@ -28,6 +28,27 @@ internal object TaskReminders {
     }
     private fun manager(context: Context) = context.getSystemService(NotificationManager::class.java)
 
+    private fun persistent(builder: Notification.Builder): Notification =
+        builder.setOngoing(true).setAutoCancel(false).build().apply {
+            flags = flags or Notification.FLAG_NO_CLEAR
+        }
+
+    private fun upgradeActiveNotifications(context: Context) {
+        val notifications = manager(context)
+        for (active in notifications.activeNotifications) {
+            val old = active.notification
+            if (Build.VERSION.SDK_INT >= 26 && old.channelId != CHANNEL) continue
+            val required = Notification.FLAG_ONGOING_EVENT or Notification.FLAG_NO_CLEAR
+            if ((old.flags and required) == required && (old.flags and Notification.FLAG_AUTO_CANCEL) == 0) continue
+            try {
+                notifications.notify(active.tag, active.id, persistent(
+                    Notification.Builder.recoverBuilder(context, old).setOnlyAlertOnce(true)))
+            } catch (_: SecurityException) {
+                // A permission change can race the silent upgrade of existing reminders.
+            }
+        }
+    }
+
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= 26) manager(context).createNotificationChannel(
             NotificationChannel(CHANNEL, "任务到期提醒", NotificationManager.IMPORTANCE_HIGH)
@@ -140,9 +161,11 @@ internal object TaskReminders {
         persist(context, next)
         for (id in old.keys()) {
             if (!next.has(id) || !sameSchedule(old.getJSONObject(id), next.getJSONObject(id)) ||
-                old.getJSONObject(id).optJSONArray("completedDays").toString() != next.getJSONObject(id).optJSONArray("completedDays").toString()) cancel(context, id)
+                (old.getJSONObject(id).optJSONArray("completedDays")?.toString() ?: "[]") !=
+                (next.getJSONObject(id).optJSONArray("completedDays")?.toString() ?: "[]")) cancel(context, id)
         }
         for (id in next.keys()) schedule(context, id, next.getJSONObject(id))
+        upgradeActiveNotifications(context)
     }
 
     @Synchronized
@@ -180,18 +203,18 @@ internal object TaskReminders {
         val deadline = SimpleDateFormat("M月d日 HH:mm", Locale.CHINA).format(java.util.Date(dueTime(entry)))
         val reminderText = if (entry.optInt("leadMinutes") > 0) "截止时间：$deadline" else "这项任务到期了"
         val note = entry.optString("note").let { if (it.isBlank()) reminderText else "$reminderText\n$it" }
-        val notification = builder.setSmallIcon(R.drawable.ic_notification)
+        val notification = persistent(builder.setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(entry.getString("title")).setContentText(note)
             .setStyle(Notification.BigTextStyle().bigText(note))
             .setCategory(Notification.CATEGORY_REMINDER).setContentIntent(open)
-            .setAutoCancel(true).setShowWhen(true).setWhen(triggerTime(entry))
+            .setShowWhen(true).setWhen(triggerTime(entry))
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .apply {
                 if (Build.VERSION.SDK_INT < 26) {
                     setPriority(Notification.PRIORITY_HIGH)
                     setDefaults(Notification.DEFAULT_ALL)
                 }
-            }.build()
+            })
         try {
             manager(context).notify(id, 0, notification)
             if (entry.optBoolean("daily")) {
